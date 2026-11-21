@@ -57,10 +57,10 @@
 
         <!-- User Role Profile Pill -->
         <div class="user-pill" onclick="switchTab('panel-profile')" title="View Profile & Settings">
-          <div class="user-avatar" id="nav-user-avatar">A</div>
+          <div class="user-avatar" id="nav-user-avatar">{{ (current_user.full_name or 'U')[0] | upper }}</div>
           <div>
-            <div style="font-size: 0.82rem; font-weight: 700;" id="nav-user-name">Aditya Verma</div>
-            <div id="nav-user-role" class="user-role-tag role-individual">Individual</div>
+            <div style="font-size: 0.82rem; font-weight: 700;" id="nav-user-name">{{ current_user.full_name or 'Aditya Verma' }}</div>
+            <div id="nav-user-role" class="user-role-tag role-{{ current_user.role or 'individual' }}">{{ (current_user.role or 'individual') | replace('_', ' ') | title }}</div>
           </div>
         </div>
 
@@ -72,6 +72,12 @@
           <option value="business">💼 Business User</option>
           <option value="admin_reviewer">🛡️ Admin / Reviewer</option>
         </select>
+
+        <!-- Professional Sign Out Button -->
+        <a href="/logout" class="btn-logout" title="Sign out of NexaPay" style="background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 7px 12px; border-radius: 9px; font-size: 0.78rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s ease;">
+          <span>🚪</span>
+          <span>Sign Out</span>
+        </a>
       </div>
     </header>
 
@@ -1005,6 +1011,16 @@
               <button class="pill-btn" onclick="switchDemoRole('business')">Business User</button>
               <button class="pill-btn" onclick="switchDemoRole('admin_reviewer')">Admin / Reviewer</button>
             </div>
+          </div>
+
+          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <div style="font-size: 0.85rem; font-weight: 700;">Account Session</div>
+              <div style="font-size: 0.76rem; color: #94a3b8;">End your active secure session on this device.</div>
+            </div>
+            <a href="/logout" class="btn-secondary" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.35); text-decoration: none; padding: 8px 16px; font-weight: 600;">
+              🚪 Sign Out of NexaPay
+            </a>
           </div>
         </div>
       </div>

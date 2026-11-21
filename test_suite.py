@@ -16,6 +16,7 @@ Executes complete verification across:
 import unittest
 import json
 import os
+from werkzeug.security import check_password_hash
 from engines.link_scanner import LinkScannerEngine
 from engines.otp_detector import OTPScamDetectorEngine
 from engines.message_scanner import MessageScannerEngine
@@ -593,6 +594,175 @@ class NexaPayComprehensiveTestSuite(unittest.TestCase):
         self.assertIn("high_risk_count", data)
         self.assertIn("thresholds", data)
         print("✓ Test 36 Passed: Real-time fraud telemetry and distribution metrics verified.")
+
+    # -------------------------------------------------------------
+    # 17. AUTHENTICATION & LOGIN WORKFLOW TESTS
+    # -------------------------------------------------------------
+    def test_37_unauthenticated_dashboard_redirect(self):
+        anon_client = app.test_client()
+        res = anon_client.get("/")
+        self.assertEqual(res.status_code, 302)
+        self.assertIn("/login", res.headers.get("Location", ""))
+        print("✓ Test 37 Passed: Unauthenticated dashboard request safely redirects to /login.")
+
+    def test_38_unauthenticated_protected_apis_401(self):
+        anon_client = app.test_client()
+        res_tx = anon_client.get("/api/transactions")
+        self.assertEqual(res_tx.status_code, 401)
+        res_bg = anon_client.get("/api/budgets")
+        self.assertEqual(res_bg.status_code, 401)
+        res_sg = anon_client.get("/api/savings-goals")
+        self.assertEqual(res_sg.status_code, 401)
+        print("✓ Test 38 Passed: Unauthenticated API access correctly rejected with HTTP 401.")
+
+    def test_39_login_page_renders(self):
+        anon_client = app.test_client()
+        res = anon_client.get("/login")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"Welcome Back to NexaPay", res.data)
+        self.assertIn(b"Secure access to your smarter financial experience", res.data)
+        print("✓ Test 39 Passed: Professional login page renders with branding and security badges.")
+
+    def test_40_valid_login_form_post(self):
+        auth_client = app.test_client()
+        login_res = auth_client.post("/login", data={
+            "identifier": "individual@nexapay.local",
+            "password": "demo123",
+            "remember_me": "1"
+        }, follow_redirects=False)
+        self.assertEqual(login_res.status_code, 302)
+        self.assertEqual(login_res.headers.get("Location"), "/")
+        
+        # Follow redirect to dashboard
+        dash_res = auth_client.get("/")
+        self.assertEqual(dash_res.status_code, 200)
+        self.assertIn(b"Aditya Verma", dash_res.data)
+        print("✓ Test 40 Passed: Valid credential login sets session and redirects to dashboard.")
+
+    def test_41_invalid_email_or_username(self):
+        res = self.client.post("/login", data={
+            "identifier": "nonexistent_ghost_999@nexapay.local",
+            "password": "some_random_password"
+        })
+        self.assertEqual(res.status_code, 401)
+        self.assertIn(b"Invalid email or password", res.data)
+        print("✓ Test 41 Passed: Unknown email/username login returns 401 with generic safe error.")
+
+    def test_42_incorrect_password(self):
+        res = self.client.post("/login", data={
+            "identifier": "individual@nexapay.local",
+            "password": "definitely_wrong_password_456"
+        })
+        self.assertEqual(res.status_code, 401)
+        self.assertIn(b"Invalid email or password", res.data)
+        print("✓ Test 42 Passed: Incorrect password attempt rejected with 401.")
+
+    def test_43_empty_form_submission(self):
+        res = self.client.post("/login", data={"identifier": "", "password": ""})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn(b"required", res.data)
+        print("✓ Test 43 Passed: Empty login form submission rejected with 400.")
+
+    def test_44_registration_successful_and_duplicate_prevention(self):
+        unique_email = f"candidate_{os.getpid()}_{hash(app)}@nexapay.local"
+        reg_payload = {
+            "full_name": "Ramesh Patel",
+            "email": unique_email,
+            "phone": "+91 98765 11111",
+            "role": "shop_owner",
+            "password": "SecurePassword#2026",
+            "confirm_password": "SecurePassword#2026"
+        }
+        reg_res = self.client.post("/register", data=reg_payload, follow_redirects=False)
+        self.assertEqual(reg_res.status_code, 302)
+        
+        # Attempt duplicate registration with exact same email
+        dup_res = self.client.post("/register", data=reg_payload)
+        self.assertEqual(dup_res.status_code, 400)
+        self.assertIn(b"already exists", dup_res.data)
+        print("✓ Test 44 Passed: User registration succeeded and duplicate email was blocked.")
+
+    def test_45_registration_admin_role_forbidden(self):
+        hacker_email = f"fake_admin_{os.getpid()}@nexapay.local"
+        reg_payload = {
+            "full_name": "Infiltrator",
+            "email": hacker_email,
+            "role": "admin_reviewer",
+            "password": "Password123",
+            "confirm_password": "Password123"
+        }
+        self.client.post("/register", data=reg_payload)
+        
+        # Inspect created user in SQLite
+        conn = database.get_db_connection()
+        row = conn.execute("SELECT role FROM users WHERE email = ?", (hacker_email,)).fetchone()
+        self.assertIsNotNone(row)
+        self.assertNotEqual(row["role"], "admin_reviewer", "Self-registering as admin must be strictly prevented")
+        self.assertEqual(row["role"], "individual")
+        conn.close()
+        print("✓ Test 45 Passed: Self-registration as administrator prevented; demoted to individual.")
+
+    def test_46_password_hashing_werkzeug_verification(self):
+        conn = database.get_db_connection()
+        row = conn.execute("SELECT password_hash FROM users WHERE email LIKE 'candidate_%' ORDER BY id DESC LIMIT 1").fetchone()
+        self.assertIsNotNone(row)
+        stored_hash = row["password_hash"]
+        self.assertTrue(
+            stored_hash.startswith("pbkdf2:sha256:") or stored_hash.startswith("scrypt:"),
+            f"Expected Werkzeug password hash format, got {stored_hash}"
+        )
+        self.assertTrue(check_password_hash(stored_hash, "SecurePassword#2026"))
+        self.assertFalse(check_password_hash(stored_hash, "PlaintextLeaked"))
+        conn.close()
+        print("✓ Test 46 Passed: Werkzeug PBKDF2 password hashing validated; plaintext never stored.")
+
+    def test_47_forgot_and_reset_password_workflow(self):
+        # 1. Request forgot password
+        forgot_res = self.client.post("/forgot-password", data={"email": "individual@nexapay.local"})
+        self.assertEqual(forgot_res.status_code, 200)
+        self.assertIn(b"reset instructions have been generated", forgot_res.data)
+
+        # 2. Generate and verify token directly
+        ok, msg, raw_token = database.create_password_reset_token("individual@nexapay.local")
+        self.assertTrue(ok)
+        self.assertIsNotNone(raw_token)
+
+        # 3. Apply password reset
+        new_pwd = "ResetTempPass#2026"
+        reset_ok, reset_msg = database.reset_password_with_token(raw_token, new_pwd)
+        self.assertTrue(reset_ok)
+
+        # 4. Authenticate with new password
+        auth_ok, auth_msg, u = database.authenticate_user("individual@nexapay.local", new_pwd)
+        self.assertTrue(auth_ok)
+        self.assertEqual(u["full_name"], "Aditya Verma")
+
+        # 5. Restore demo123 password
+        database.reset_password_with_token(
+            database.create_password_reset_token("individual@nexapay.local")[2], 
+            "demo123"
+        )
+        print("✓ Test 47 Passed: Secure one-time token password reset workflow validated.")
+
+    def test_48_logout_invalidates_session(self):
+        test_client = app.test_client()
+        # Log in first
+        test_client.post("/login", data={"identifier": "individual@nexapay.local", "password": "demo123"})
+        # Confirm access to dashboard
+        dash_res = test_client.get("/")
+        self.assertEqual(dash_res.status_code, 200)
+
+        # Log out
+        logout_res = test_client.get("/logout")
+        self.assertEqual(logout_res.status_code, 302)
+        self.assertEqual(logout_res.headers.get("Location"), "/login")
+        self.assertIn("no-store", logout_res.headers.get("Cache-Control", ""))
+
+        # Subsequent attempt to access dashboard must be redirected
+        post_logout_res = test_client.get("/")
+        self.assertEqual(post_logout_res.status_code, 302)
+        self.assertIn("/login", post_logout_res.headers.get("Location", ""))
+        print("✓ Test 48 Passed: Logout invalidates session and prevents back-navigation cache exposure.")
 
 
 if __name__ == "__main__":

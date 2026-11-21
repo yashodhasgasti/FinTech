@@ -12,6 +12,7 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
+from werkzeug.security import generate_password_hash, check_password_hash
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "nexapay.db")
 
@@ -24,21 +25,28 @@ def get_db_connection():
 
 
 def hash_password(password: str, salt: Optional[str] = None) -> Tuple[str, str]:
-    """Hashes password with PBKDF2-HMAC-SHA256 and unique salt."""
+    """Hashes password with Werkzeug PBKDF2/scrypt security utilities."""
     if not salt:
         salt = secrets.token_hex(16)
-    pwd_hash = hashlib.pbkdf2_hmac(
-        "sha256", 
-        password.encode("utf-8"), 
-        salt.encode("utf-8"), 
-        100000
-    ).hex()
+    # Generate standard secure PBKDF2:SHA256 hash using Werkzeug security
+    pwd_hash = generate_password_hash(password, method="pbkdf2:sha256")
     return pwd_hash, salt
 
 
 def verify_password(stored_hash: str, salt: str, password_attempt: str) -> bool:
-    """Verifies a password attempt against stored PBKDF2 hash."""
-    calc_hash, _ = hash_password(password_attempt, salt)
+    """Verifies a password attempt against stored Werkzeug or legacy PBKDF2 hash."""
+    if not stored_hash or not password_attempt:
+        return False
+    # If Werkzeug formatted hash (e.g. pbkdf2:sha256 or scrypt)
+    if stored_hash.startswith(("pbkdf2:", "scrypt:", "argon2:")):
+        return check_password_hash(stored_hash, password_attempt)
+    # Legacy PBKDF2 hex hash with salt check
+    calc_hash = hashlib.pbkdf2_hmac(
+        "sha256", 
+        password_attempt.encode("utf-8"), 
+        salt.encode("utf-8"), 
+        100000
+    ).hex()
     return secrets.compare_digest(stored_hash, calc_hash)
 
 
@@ -257,6 +265,20 @@ def init_db():
     if "ground_truth_label" not in feedback_cols:
         cursor.execute("ALTER TABLE fraud_feedback ADD COLUMN ground_truth_label INTEGER DEFAULT 0")
 
+    # 14. Password Resets Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS password_resets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token_hash TEXT NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reset_token ON password_resets(token_hash, used)")
+
     # Ensure schema migrations for transactions table columns
     cursor.execute("PRAGMA table_info(transactions)")
     existing_cols = {row[1] for row in cursor.fetchall()}
@@ -437,7 +459,7 @@ def seed_demo_data(cursor):
 # =====================================================================
 
 def register_user(full_name: str, email: str, password: str, role: str = "individual", phone: str = "", business_name: str = "") -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-    """Registers a new user with secure password hashing."""
+    """Registers a new user with secure Werkzeug password hashing."""
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -448,8 +470,11 @@ def register_user(full_name: str, email: str, password: str, role: str = "indivi
         return False, "An account with this email address already exists.", None
 
     pwd_hash, salt = hash_password(password)
-    valid_roles = ["individual", "shop_owner", "business", "admin_reviewer"]
-    assigned_role = role if role in valid_roles else "individual"
+    # Security requirement: Users cannot self-register as administrators
+    if role == "admin_reviewer":
+        assigned_role = "individual"
+    else:
+        assigned_role = role if role in ["individual", "shop_owner", "business"] else "individual"
 
     initial_balance = 25000.0 if assigned_role == "individual" else (100000.0 if assigned_role == "shop_owner" else 500000.0)
 
@@ -476,18 +501,25 @@ def register_user(full_name: str, email: str, password: str, role: str = "indivi
         return False, f"Registration failed: {str(e)}", None
 
 
-def authenticate_user(email: str, password_attempt: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-    """Authenticates user credentials."""
+def authenticate_user(identifier: str, password_attempt: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    """Authenticates user credentials by email or username."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    clean_email = email.strip().lower()
+    clean_id = identifier.strip().lower()
 
-    cursor.execute("SELECT * FROM users WHERE email = ?", (clean_email,))
+    cursor.execute("""
+    SELECT * FROM users 
+    WHERE LOWER(email) = ? OR LOWER(full_name) = ? OR phone = ?
+    LIMIT 1
+    """, (clean_id, clean_id, identifier.strip()))
     user = cursor.fetchone()
     conn.close()
 
     if not user:
         return False, "Invalid email or password.", None
+
+    if user["status"] != "ACTIVE":
+        return False, "Account is disabled. Please contact support.", None
 
     if not verify_password(user["password_hash"], user["salt"], password_attempt):
         return False, "Invalid email or password.", None
@@ -496,6 +528,77 @@ def authenticate_user(email: str, password_attempt: str) -> Tuple[bool, str, Opt
     user_dict.pop("password_hash", None)
     user_dict.pop("salt", None)
     return True, "Authentication successful.", user_dict
+
+
+def create_password_reset_token(email: str) -> Tuple[bool, str, Optional[str]]:
+    """Creates a cryptographically secure, single-use password reset token valid for 15 minutes."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, email, full_name FROM users WHERE LOWER(email) = ?", (email.strip().lower(),))
+    user = cursor.fetchone()
+    if not user:
+        conn.close()
+        # Generic safe message to prevent email enumeration attacks
+        return True, "If an account matches that email address, password reset instructions have been generated.", None
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    expires_at = (datetime.now() + timedelta(minutes=15)).strftime("%Y-%m-%d %H:%M:%S")
+
+    cursor.execute("""
+    INSERT INTO password_resets (user_id, token_hash, expires_at, used)
+    VALUES (?, ?, ?, 0)
+    """, (user["id"], token_hash, expires_at))
+    conn.commit()
+    conn.close()
+    return True, "Password reset token created successfully.", raw_token
+
+
+def verify_password_reset_token(raw_token: str) -> Tuple[bool, str, Optional[int]]:
+    """Validates password reset token, checks expiration and single-use status."""
+    if not raw_token:
+        return False, "Missing or invalid password reset token.", None
+
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT r.id, r.user_id, r.expires_at, r.used, u.email, u.full_name
+    FROM password_resets r
+    JOIN users u ON r.user_id = u.id
+    WHERE r.token_hash = ? AND r.used = 0 AND r.expires_at > ?
+    ORDER BY r.id DESC LIMIT 1
+    """, (token_hash, now_str))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return False, "Invalid or expired password reset link. Please request a new one.", None
+
+    return True, "Token valid.", row["user_id"]
+
+
+def reset_password_with_token(raw_token: str, new_password: str) -> Tuple[bool, str]:
+    """Applies new password after token validation and marks token as used."""
+    valid, msg, user_id = verify_password_reset_token(raw_token)
+    if not valid or not user_id:
+        return False, msg
+
+    if len(new_password) < 6:
+        return False, "Password must be at least 6 characters long."
+
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    new_hash, new_salt = hash_password(new_password)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET password_hash = ?, salt = ? WHERE id = ?", (new_hash, new_salt, user_id))
+    cursor.execute("UPDATE password_resets SET used = 1 WHERE token_hash = ?", (token_hash,))
+    conn.commit()
+    conn.close()
+    return True, "Password reset successfully. You can now log in with your new password."
 
 
 def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:

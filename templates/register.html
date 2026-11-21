@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexaPay — Create Your Account</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .auth-body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 15% 20%, rgba(30, 58, 138, 0.35) 0%, transparent 45%),
+                  radial-gradient(circle at 85% 80%, rgba(6, 182, 212, 0.20) 0%, transparent 45%),
+                  #070b14;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 30px 20px;
+      box-sizing: border-box;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    .auth-bg-grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .auth-container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 520px;
+      margin: auto;
+    }
+
+    .auth-card {
+      background: rgba(13, 21, 39, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 20px;
+      padding: 36px 36px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7),
+                  0 0 40px rgba(59, 130, 246, 0.1);
+    }
+
+    .auth-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .brand-logo-wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 54px;
+      height: 54px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.25), rgba(6, 182, 212, 0.25));
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      box-shadow: 0 0 25px rgba(37, 99, 235, 0.35);
+      margin-bottom: 14px;
+      font-size: 1.6rem;
+    }
+
+    .auth-title {
+      font-size: 1.55rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin: 0 0 6px 0;
+      letter-spacing: -0.02em;
+    }
+
+    .auth-subtitle {
+      font-size: 0.88rem;
+      color: #94a3b8;
+      margin: 0;
+      line-height: 1.45;
+    }
+
+    .form-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    @media (max-width: 540px) {
+      .form-grid-2 {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+    }
+
+    .form-group-auth {
+      margin-bottom: 18px;
+    }
+
+    .form-label-auth {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 6px;
+    }
+
+    .input-wrapper-auth {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon-auth {
+      position: absolute;
+      left: 14px;
+      font-size: 1rem;
+      color: #64748b;
+      pointer-events: none;
+    }
+
+    .form-control-auth {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 11px 14px 11px 40px;
+      font-size: 0.90rem;
+      color: #ffffff;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+
+    .form-control-auth:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+      background: rgba(15, 23, 42, 0.95);
+    }
+
+    .select-auth {
+      padding-left: 40px;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .pwd-toggle-btn {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      padding: 4px;
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+
+    .pwd-toggle-btn:hover {
+      color: #ffffff;
+    }
+
+    .pwd-strength-bar {
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.1);
+      margin-top: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .pwd-strength-fill {
+      height: 100%;
+      width: 0%;
+      transition: width 0.2s, background-color 0.2s;
+      border-radius: 2px;
+    }
+
+    .pwd-strength-hint {
+      font-size: 0.72rem;
+      color: #64748b;
+      margin-top: 4px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .terms-box {
+      margin-bottom: 22px;
+      font-size: 0.82rem;
+      color: #94a3b8;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.4;
+    }
+
+    .terms-box input[type="checkbox"] {
+      accent-color: #3b82f6;
+      width: 16px;
+      height: 16px;
+      margin-top: 2px;
+      cursor: pointer;
+    }
+
+    .terms-box a {
+      color: #60a5fa;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .btn-auth-submit {
+      width: 100%;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      padding: 13px 20px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #ffffff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.4);
+      transition: transform 0.15s, box-shadow 0.15s;
+      font-family: inherit;
+    }
+
+    .btn-auth-submit:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(37, 99, 235, 0.55);
+    }
+
+    .btn-auth-submit:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .spinner-auth {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .auth-alert {
+      padding: 12px 16px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 0.86rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      line-height: 1.4;
+    }
+
+    .auth-alert-error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+    }
+
+    .auth-footer {
+      text-align: center;
+      margin-top: 22px;
+      font-size: 0.88rem;
+      color: #94a3b8;
+    }
+
+    .auth-footer a {
+      color: #60a5fa;
+      text-decoration: none;
+      font-weight: 700;
+      margin-left: 4px;
+    }
+
+    .auth-footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body class="auth-body">
+  <div class="auth-bg-grid"></div>
+
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="brand-logo-wrap">✨</div>
+        <h1 class="auth-title">Create Your Account</h1>
+        <p class="auth-subtitle">Join thousands enjoying smarter, safer digital payments with proactive AI protection.</p>
+      </div>
+
+      {% if error %}
+      <div class="auth-alert auth-alert-error" id="register-alert-box">
+        <span>⚠️</span>
+        <span>{{ error }}</span>
+      </div>
+      {% else %}
+      <div class="auth-alert auth-alert-error" id="register-alert-box" style="display: none;">
+        <span>⚠️</span>
+        <span id="register-alert-text"></span>
+      </div>
+      {% endif %}
+
+      <form id="form-register" method="POST" action="/register" onsubmit="return handleRegisterSubmit(event)">
+        
+        <div class="form-group-auth">
+          <label class="form-label-auth" for="reg-fullname">Full Name *</label>
+          <div class="input-wrapper-auth">
+            <span class="input-icon-auth">👤</span>
+            <input 
+              type="text" 
+              id="reg-fullname" 
+              name="full_name" 
+              class="form-control-auth" 
+              placeholder="e.g. Ramesh Patel" 
+              required 
+              autocomplete="name"
+              value="{{ full_name or '' }}"
+            >
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group-auth">
+            <label class="form-label-auth" for="reg-email">Email Address *</label>
+            <div class="input-wrapper-auth">
+              <span class="input-icon-auth">✉️</span>
+              <input 
+                type="email" 
+                id="reg-email" 
+                name="email" 
+                class="form-control-auth" 
+                placeholder="ramesh@example.com" 
+                required 
+                autocomplete="email"
+                value="{{ email or '' }}"
+              >
+            </div>
+          </div>
+
+          <div class="form-group-auth">
+            <label class="form-label-auth" for="reg-phone">Mobile Number</label>
+            <div class="input-wrapper-auth">
+              <span class="input-icon-auth">📱</span>
+              <input 
+                type="tel" 
+                id="reg-phone" 
+                name="phone" 
+                class="form-control-auth" 
+                placeholder="+91 98765 00000" 
+                autocomplete="tel"
+                value="{{ phone or '' }}"
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group-auth">
+          <label class="form-label-auth" for="reg-role">Account Type *</label>
+          <div class="input-wrapper-auth">
+            <span class="input-icon-auth">🏷️</span>
+            <select id="reg-role" name="role" class="form-control-auth select-auth" required>
+              <option value="individual" {% if role == 'individual' %}selected{% endif %}>👤 Individual User (Personal Payments & AI Scam Shield)</option>
+              <option value="shop_owner" {% if role == 'shop_owner' %}selected{% endif %}>🏪 Retail Shop Owner (Merchant QR & Payment Terminal)</option>
+              <option value="business" {% if role == 'business' %}selected{% endif %}>💼 Business Enterprise (Cash Flow Forecast & Treasury)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group-auth">
+            <label class="form-label-auth" for="reg-password">Password *</label>
+            <div class="input-wrapper-auth">
+              <span class="input-icon-auth">🔒</span>
+              <input 
+                type="password" 
+                id="reg-password" 
+                name="password" 
+                class="form-control-auth" 
+                placeholder="Min 6 characters" 
+                required 
+                autocomplete="new-password"
+                oninput="checkPasswordStrength(this.value)"
+              >
+              <button 
+                type="button" 
+                class="pwd-toggle-btn" 
+                onclick="togglePasswordVisibility('reg-password', this)"
+                title="Toggle password view"
+              >
+                👁️
+              </button>
+            </div>
+            <div class="pwd-strength-bar">
+              <div class="pwd-strength-fill" id="strength-fill"></div>
+            </div>
+            <div class="pwd-strength-hint">
+              <span id="strength-label">Strength: None</span>
+              <span>Min 6 chars</span>
+            </div>
+          </div>
+
+          <div class="form-group-auth">
+            <label class="form-label-auth" for="reg-confirm-password">Confirm Password *</label>
+            <div class="input-wrapper-auth">
+              <span class="input-icon-auth">🔒</span>
+              <input 
+                type="password" 
+                id="reg-confirm-password" 
+                name="confirm_password" 
+                class="form-control-auth" 
+                placeholder="Re-enter password" 
+                required 
+                autocomplete="new-password"
+              >
+              <button 
+                type="button" 
+                class="pwd-toggle-btn" 
+                onclick="togglePasswordVisibility('reg-confirm-password', this)"
+                title="Toggle password view"
+              >
+                👁️
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="terms-box">
+          <input type="checkbox" id="accept-terms" name="accept_terms" required>
+          <label for="accept-terms">
+            I agree to the <a href="#privacy">Terms of Service</a>, <a href="#privacy">Privacy Policy</a>, and consent to fraud telemetry monitoring for account security.
+          </label>
+        </div>
+
+        <button type="submit" class="btn-auth-submit" id="btn-register-submit">
+          <span class="spinner-auth" id="reg-spinner"></span>
+          <span id="btn-reg-text">Create NexaPay Account 🛡️</span>
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        Already have an account? 
+        <a href="/login">Sign In</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === "password") {
+        input.type = "text";
+        btn.textContent = "🙈";
+      } else {
+        input.type = "password";
+        btn.textContent = "👁️";
+      }
+    }
+
+    function checkPasswordStrength(val) {
+      const fill = document.getElementById("strength-fill");
+      const label = document.getElementById("strength-label");
+      if (!val) {
+        fill.style.width = "0%";
+        label.textContent = "Strength: None";
+        return;
+      }
+      let score = 0;
+      if (val.length >= 6) score += 25;
+      if (val.length >= 10) score += 25;
+      if (/[A-Z]/.test(val) && /[a-z]/.test(val)) score += 25;
+      if (/[0-9]/.test(val) || /[^A-Za-z0-9]/.test(val)) score += 25;
+
+      fill.style.width = score + "%";
+      if (score <= 25) {
+        fill.style.backgroundColor = "#ef4444";
+        label.textContent = "Strength: Weak";
+      } else if (score <= 50) {
+        fill.style.backgroundColor = "#f59e0b";
+        label.textContent = "Strength: Fair";
+      } else if (score <= 75) {
+        fill.style.backgroundColor = "#3b82f6";
+        label.textContent = "Strength: Good";
+      } else {
+        fill.style.backgroundColor = "#10b981";
+        label.textContent = "Strength: Strong";
+      }
+    }
+
+    function handleRegisterSubmit(e) {
+      const fullname = document.getElementById("reg-fullname").value.trim();
+      const email = document.getElementById("reg-email").value.trim();
+      const pwd = document.getElementById("reg-password").value;
+      const confirmPwd = document.getElementById("reg-confirm-password").value;
+      const terms = document.getElementById("accept-terms").checked;
+      const alertBox = document.getElementById("register-alert-box");
+      const alertText = document.getElementById("register-alert-text");
+
+      function showError(msg) {
+        alertBox.style.display = "flex";
+        alertBox.className = "auth-alert auth-alert-error";
+        alertText.textContent = msg;
+      }
+
+      if (!fullname || !email || !pwd || !confirmPwd) {
+        e.preventDefault();
+        showError("Please fill in all required fields.");
+        return false;
+      }
+
+      if (pwd.length < 6) {
+        e.preventDefault();
+        showError("Password must be at least 6 characters long.");
+        return false;
+      }
+
+      if (pwd !== confirmPwd) {
+        e.preventDefault();
+        showError("Passwords do not match. Please re-enter.");
+        return false;
+      }
+
+      if (!terms) {
+        e.preventDefault();
+        showError("You must agree to the Terms of Service to create an account.");
+        return false;
+      }
+
+      const btn = document.getElementById("btn-register-submit");
+      const spinner = document.getElementById("reg-spinner");
+      const text = document.getElementById("btn-reg-text");
+      btn.disabled = true;
+      spinner.style.display = "inline-block";
+      text.textContent = "Creating Account...";
+      return true;
+    }
+  </script>
+</body>
+</html>

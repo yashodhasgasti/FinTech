@@ -5,6 +5,16 @@
  * conversational financial chatbot, and multi-vector security scanners.
  */
 
+// Global Session Expiration Interceptor
+const _originalFetch = window.fetch;
+window.fetch = async function(...args) {
+  const response = await _originalFetch.apply(this, args);
+  if (response.status === 401 && !window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
+    window.location.href = '/login?expired=1';
+  }
+  return response;
+};
+
 // Global Application State
 const state = {
   currentUser: null,

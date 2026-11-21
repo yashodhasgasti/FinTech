@@ -41,6 +41,10 @@ from engines.financial_chatbot import FinancialChatbotEngine
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("NEXAPAY_SECRET_KEY", "nexapay-hackathon-production-secret-key-2026")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max upload
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+from datetime import timedelta
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=7)
 
 # Initialize database on startup
 database.init_db()
@@ -106,16 +110,43 @@ def check_user_rate_limit(user_id: int, max_per_minute: int = 15) -> bool:
 # AUTHENTICATION & SESSION HELPERS
 # =====================================================================
 
-def get_current_user():
-    """Returns the current authenticated user dict or a default demo user (Individual User 1)."""
-    user_id = session.get("user_id", 1)
+# In-memory brute-force login rate limiter (max 5 failed attempts per 5 minutes per IP/identifier)
+LOGIN_FAILURES: Dict[str, List[float]] = {}
+LOGIN_FAILURE_LOCK = threading.Lock()
+
+def check_login_rate_limit(identifier: str, ip: str, max_attempts: int = 5, window_sec: float = 300.0) -> bool:
+    """Rate-limits failed login attempts per IP / identifier to protect against brute-force attacks."""
+    now = time.time()
+    key = f"{ip}:{identifier.strip().lower()}"
+    with LOGIN_FAILURE_LOCK:
+        ts = LOGIN_FAILURES.get(key, [])
+        ts = [t for t in ts if now - t < window_sec]
+        if len(ts) >= max_attempts:
+            LOGIN_FAILURES[key] = ts
+            return False
+        LOGIN_FAILURES[key] = ts
+        return True
+
+def record_login_failure(identifier: str, ip: str):
+    now = time.time()
+    key = f"{ip}:{identifier.strip().lower()}"
+    with LOGIN_FAILURE_LOCK:
+        ts = LOGIN_FAILURES.get(key, [])
+        ts.append(now)
+        LOGIN_FAILURES[key] = ts
+
+def clear_login_failures(identifier: str, ip: str):
+    key = f"{ip}:{identifier.strip().lower()}"
+    with LOGIN_FAILURE_LOCK:
+        LOGIN_FAILURES.pop(key, None)
+
+
+def get_current_user() -> Optional[Dict[str, Any]]:
+    """Returns the current authenticated user dict from session, or None if unauthenticated."""
+    user_id = session.get("user_id")
+    if not user_id:
+        return None
     user = database.get_user_by_id(user_id)
-    if not user:
-        # Fallback to demo individual
-        user = database.get_user_by_id(1)
-        if user:
-            session["user_id"] = user["id"]
-            session["role"] = user["role"]
     return user
 
 
@@ -125,25 +156,169 @@ def get_current_user():
 
 @app.route("/")
 def index():
-    """Renders the NEXAPAY unified FinTech platform."""
+    """Renders the NEXAPAY unified FinTech platform (requires authenticated session)."""
     user = get_current_user()
+    if not user:
+        return redirect(url_for("login_page"))
+
     metrics = database.get_dashboard_metrics()
     recent_scans = database.get_recent_scans(6)
-    return render_template(
+    response = make_response(render_template(
         "index.html", 
         current_user=user, 
         metrics=metrics, 
         recent_scans=recent_scans
-    )
+    ))
+    # Prevent browser caching of protected financial dashboard
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 # =====================================================================
-# AUTHENTICATION APIS
+# AUTHENTICATION WEB INTERFACES (LOGIN, REGISTER, LOGOUT, FORGOT PWD)
+# =====================================================================
+
+@app.route("/login", methods=["GET", "POST"])
+def login_page():
+    """Renders professional FinTech login interface and handles credential verification."""
+    if request.method == "GET":
+        user = get_current_user()
+        if user:
+            return redirect(url_for("index"))
+        expired = request.args.get("expired") == "1"
+        error = "Your session has expired. Please log in again to continue." if expired else None
+        return render_template("login.html", next_url=request.args.get("next"), error=error)
+
+    identifier = request.form.get("identifier", "").strip()
+    password = request.form.get("password", "").strip()
+    remember_me = request.form.get("remember_me") == "1"
+    next_url = request.form.get("next") or url_for("index")
+
+    if not identifier or not password:
+        return render_template("login.html", error="Email/username and password are required.", identifier=identifier), 400
+
+    ip = request.remote_addr or "127.0.0.1"
+    if not check_login_rate_limit(identifier, ip, max_attempts=5, window_sec=300.0):
+        return render_template("login.html", error="Too many failed login attempts. Please wait 5 minutes before retrying.", identifier=identifier), 429
+
+    success, msg, user = database.authenticate_user(identifier, password)
+    if not success or not user:
+        record_login_failure(identifier, ip)
+        return render_template("login.html", error="Invalid email or password.", identifier=identifier), 401
+
+    clear_login_failures(identifier, ip)
+    session.clear()
+    session["user_id"] = user["id"]
+    session["role"] = user["role"]
+    session["user_name"] = user["full_name"]
+    session.permanent = remember_me
+    return redirect(next_url)
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register_page():
+    """Renders user registration interface and processes new account creation."""
+    if request.method == "GET":
+        user = get_current_user()
+        if user:
+            return redirect(url_for("index"))
+        return render_template("register.html")
+
+    full_name = request.form.get("full_name", "").strip()
+    email = request.form.get("email", "").strip()
+    phone = request.form.get("phone", "").strip()
+    role = request.form.get("role", "individual").strip()
+    password = request.form.get("password", "").strip()
+    confirm_password = request.form.get("confirm_password", "").strip()
+
+    if not full_name or not email or not password:
+        return render_template("register.html", error="All required fields must be filled.", full_name=full_name, email=email, phone=phone, role=role), 400
+
+    if len(password) < 6:
+        return render_template("register.html", error="Password must be at least 6 characters long.", full_name=full_name, email=email, phone=phone, role=role), 400
+
+    if password != confirm_password:
+        return render_template("register.html", error="Passwords do not match.", full_name=full_name, email=email, phone=phone, role=role), 400
+
+    success, msg, user = database.register_user(full_name, email, password, role, phone)
+    if not success or not user:
+        return render_template("register.html", error=msg, full_name=full_name, email=email, phone=phone, role=role), 400
+
+    session.clear()
+    session["user_id"] = user["id"]
+    session["role"] = user["role"]
+    session["user_name"] = user["full_name"]
+    return redirect(url_for("index"))
+
+
+@app.route("/logout")
+def logout_page():
+    """Invalidates active session and redirects to login with cache invalidation headers."""
+    session.clear()
+    response = redirect(url_for("login_page"))
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password_page():
+    """Handles forgot password requests and generates secure one-time reset tokens."""
+    if request.method == "GET":
+        return render_template("forgot_password.html")
+
+    email = request.form.get("email", "").strip()
+    if not email:
+        return render_template("forgot_password.html", error="Please enter your email address."), 400
+
+    success, msg, raw_token = database.create_password_reset_token(email)
+    return render_template(
+        "forgot_password.html", 
+        success="If an account exists with that email address, password reset instructions have been generated.",
+        dev_token=raw_token,
+        email=email
+    )
+
+
+@app.route("/reset-password", methods=["GET", "POST"])
+def reset_password_page():
+    """Validates single-use reset token and updates account password."""
+    if request.method == "GET":
+        token = request.args.get("token", "").strip()
+        if not token:
+            return render_template("reset_password.html", error="Missing reset token. Please request a new one.")
+        valid, msg, uid = database.verify_password_reset_token(token)
+        if not valid:
+            return render_template("reset_password.html", error=msg)
+        return render_template("reset_password.html", token=token)
+
+    token = request.form.get("token", "").strip()
+    new_pwd = request.form.get("new_password", "").strip()
+    confirm_pwd = request.form.get("confirm_password", "").strip()
+
+    if not new_pwd or len(new_pwd) < 6:
+        return render_template("reset_password.html", error="Password must be at least 6 characters long.", token=token), 400
+
+    if new_pwd != confirm_pwd:
+        return render_template("reset_password.html", error="Passwords do not match.", token=token), 400
+
+    success, msg = database.reset_password_with_token(token, new_pwd)
+    if not success:
+        return render_template("reset_password.html", error=msg, token=token), 400
+
+    return render_template("login.html", success="Your password has been successfully reset. Please log in with your new password.")
+
+
+# =====================================================================
+# AUTHENTICATION JSON APIS (REGISTER, LOGIN, LOGOUT, ME, DEMO SWITCH)
 # =====================================================================
 
 @app.route("/api/auth/register", methods=["POST"])
 def auth_register():
-    """Registers a new user account with selected role."""
+    """Registers a new user account with selected role (JSON API)."""
     data = request.get_json(silent=True) or {}
     name = data.get("full_name", "").strip()
     email = data.get("email", "").strip()
@@ -160,33 +335,47 @@ def auth_register():
 
     success, msg, user = database.register_user(name, email, password, role, phone, business_name)
     if success and user:
+        session.clear()
         session["user_id"] = user["id"]
         session["role"] = user["role"]
+        session["user_name"] = user["full_name"]
         return jsonify({"success": True, "message": msg, "user": user})
     return jsonify({"success": False, "error": msg}), 400
 
 
 @app.route("/api/auth/login", methods=["POST"])
 def auth_login():
-    """Authenticates a user and starts session."""
-    data = request.get_json(silent=True) or {}
-    email = data.get("email", "").strip()
-    password = data.get("password", "").strip()
+    """Authenticates a user and starts session (JSON API)."""
+    data = request.get_json(silent=True) or request.form or {}
+    identifier = data.get("identifier") or data.get("email", "")
+    identifier = str(identifier).strip()
+    password = str(data.get("password", "")).strip()
+    remember_me = bool(data.get("remember_me", False))
 
-    if not email or not password:
-        return jsonify({"success": False, "error": "Email and password are required."}), 400
+    if not identifier or not password:
+        return jsonify({"success": False, "error": "Email/username and password are required."}), 400
 
-    success, msg, user = database.authenticate_user(email, password)
+    ip = request.remote_addr or "127.0.0.1"
+    if not check_login_rate_limit(identifier, ip, max_attempts=5, window_sec=300.0):
+        return jsonify({"success": False, "error": "Too many failed login attempts. Please wait 5 minutes before retrying."}), 429
+
+    success, msg, user = database.authenticate_user(identifier, password)
     if success and user:
+        clear_login_failures(identifier, ip)
+        session.clear()
         session["user_id"] = user["id"]
         session["role"] = user["role"]
+        session["user_name"] = user["full_name"]
+        session.permanent = remember_me
         return jsonify({"success": True, "message": msg, "user": user})
-    return jsonify({"success": False, "error": msg}), 401
+
+    record_login_failure(identifier, ip)
+    return jsonify({"success": False, "error": "Invalid email or password."}), 401
 
 
 @app.route("/api/auth/logout", methods=["POST"])
 def auth_logout():
-    """Clears current user session."""
+    """Clears current user session (JSON API)."""
     session.clear()
     return jsonify({"success": True, "message": "Logged out successfully."})
 
@@ -232,6 +421,7 @@ def auth_switch_demo():
     if target_user:
         session["user_id"] = target_user["id"]
         session["role"] = target_user["role"]
+        session["user_name"] = target_user["full_name"]
         return jsonify({"success": True, "user": target_user, "message": f"Switched to {target_role} profile."})
     return jsonify({"success": False, "error": "Role user not found."}), 404
 
@@ -280,6 +470,8 @@ def auth_change_password():
 def get_transactions():
     """Retrieves paginated transactions with multi-criteria filtering."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     search = request.args.get("search", "").strip()
     category = request.args.get("category", "").strip()
     txn_type = request.args.get("txn_type", "").strip()
@@ -867,6 +1059,8 @@ def get_review_audit_logs():
 def get_budgets():
     """Fetches user monthly budgets with real-time expenditure calculations."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     budgets = database.get_user_budgets(user["id"])
     return jsonify({"budgets": budgets})
 
@@ -875,6 +1069,8 @@ def get_budgets():
 def set_budget():
     """Creates or updates a category budget allocation."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     data = request.get_json(silent=True) or {}
 
     category = data.get("category", "")
@@ -892,6 +1088,8 @@ def set_budget():
 def delete_budget(budget_id: int):
     """Deletes a budget allocation."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     success = database.delete_user_budget(budget_id, user["id"])
     return jsonify({"success": success})
 
@@ -900,6 +1098,8 @@ def delete_budget(budget_id: int):
 def get_savings():
     """Retrieves all savings goals and progress."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     goals = database.get_savings_goals(user["id"])
     return jsonify({"goals": goals})
 
@@ -908,6 +1108,8 @@ def get_savings():
 def create_savings_goal():
     """Creates a new savings goal."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     data = request.get_json(silent=True) or {}
 
     name = data.get("goal_name", "").strip()
@@ -927,6 +1129,8 @@ def create_savings_goal():
 def deposit_savings_goal(goal_id: int):
     """Adds funds to a savings goal."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     data = request.get_json(silent=True) or {}
     amount = float(data.get("amount", 0.0))
 
@@ -945,6 +1149,8 @@ def deposit_savings_goal(goal_id: int):
 def get_analytics_summary():
     """Returns comprehensive financial metrics, trends, and category breakdowns."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     analytics = database.get_financial_analytics(user["id"], user["role"])
     return jsonify(analytics)
 
@@ -953,6 +1159,8 @@ def get_analytics_summary():
 def get_spending_forecast():
     """Generates weekly and monthly predictive spending forecasts."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     user_txns, _ = database.get_user_transactions(user["id"], user["role"], limit=100)
     forecast = SpendingForecastingEngine.generate_forecast(user_txns, user["wallet_balance"])
     return jsonify(forecast)
@@ -966,6 +1174,8 @@ def get_spending_forecast():
 def get_notifications():
     """Fetches user notifications."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     notifs = database.get_user_notifications(user["id"], limit=30)
     unread_count = sum(1 for n in notifs if n["is_read"] == 0)
     return jsonify({"notifications": notifs, "unread_count": unread_count})
@@ -975,6 +1185,8 @@ def get_notifications():
 def mark_notif_read(notif_id: int):
     """Marks a single notification as read."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     database.mark_notification_read(notif_id, user["id"])
     return jsonify({"success": True})
 
@@ -983,6 +1195,8 @@ def mark_notif_read(notif_id: int):
 def mark_all_notifs_read():
     """Marks all user notifications as read."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     database.mark_all_notifications_read(user["id"])
     return jsonify({"success": True})
 
@@ -995,6 +1209,8 @@ def mark_all_notifs_read():
 def chatbot_query():
     """Contextual conversational response grounded in user's actual financial records."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     data = request.get_json(silent=True) or {}
     query = data.get("query", "").strip()
 
@@ -1014,6 +1230,10 @@ def chatbot_query():
 def admin_get_users():
     """Admin view of all registered users."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
+    if user["role"] != "admin_reviewer":
+        return jsonify({"success": False, "error": "Admin access required."}), 403
     users = database.get_all_users_list()
     return jsonify({"users": users})
 
@@ -1033,6 +1253,8 @@ def admin_get_stats():
 def export_transactions_csv():
     """Exports user transactions as a downloadable CSV spreadsheet."""
     user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
     txns, _ = database.get_user_transactions(user["id"], user["role"], limit=500)
 
     output = io.StringIO()
@@ -1069,6 +1291,8 @@ def export_transactions_csv():
 def export_statement():
     """Generates a clean HTML/printable summary statement for the user."""
     user = get_current_user()
+    if not user:
+        return redirect(url_for("login_page"))
     analytics = database.get_financial_analytics(user["id"], user["role"])
     txns, _ = database.get_user_transactions(user["id"], user["role"], limit=20)
     

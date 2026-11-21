@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexaPay — Secure FinTech Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    /* Dedicated Auth Page Styles */
+    .auth-body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 15% 20%, rgba(30, 58, 138, 0.35) 0%, transparent 45%),
+                  radial-gradient(circle at 85% 80%, rgba(6, 182, 212, 0.20) 0%, transparent 45%),
+                  #070b14;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      box-sizing: border-box;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    .auth-bg-grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .auth-container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 460px;
+      margin: auto;
+    }
+
+    .auth-card {
+      background: rgba(13, 21, 39, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 20px;
+      padding: 40px 36px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7),
+                  0 0 40px rgba(59, 130, 246, 0.1);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .auth-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .brand-logo-wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 58px;
+      height: 58px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.25), rgba(6, 182, 212, 0.25));
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      box-shadow: 0 0 25px rgba(37, 99, 235, 0.35);
+      margin-bottom: 16px;
+      font-size: 1.8rem;
+    }
+
+    .auth-title {
+      font-size: 1.65rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin: 0 0 8px 0;
+      letter-spacing: -0.02em;
+    }
+
+    .auth-subtitle {
+      font-size: 0.92rem;
+      color: #94a3b8;
+      margin: 0;
+      line-height: 1.45;
+    }
+
+    .security-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 12px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    .form-group-auth {
+      margin-bottom: 20px;
+    }
+
+    .form-label-auth {
+      display: block;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 8px;
+    }
+
+    .input-wrapper-auth {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon-auth {
+      position: absolute;
+      left: 14px;
+      font-size: 1.05rem;
+      color: #64748b;
+      pointer-events: none;
+    }
+
+    .form-control-auth {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 12px 14px 12px 42px;
+      font-size: 0.92rem;
+      color: #ffffff;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+
+    .form-control-auth:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+      background: rgba(15, 23, 42, 0.95);
+    }
+
+    .pwd-toggle-btn {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      padding: 4px;
+      font-size: 1.1rem;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+
+    .pwd-toggle-btn:hover {
+      color: #ffffff;
+    }
+
+    .auth-options {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      font-size: 0.84rem;
+    }
+
+    .remember-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #94a3b8;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .remember-label input[type="checkbox"] {
+      accent-color: #3b82f6;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .forgot-link {
+      color: #60a5fa;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.15s;
+    }
+
+    .forgot-link:hover {
+      color: #93c5fd;
+      text-decoration: underline;
+    }
+
+    .btn-auth-submit {
+      width: 100%;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      padding: 13px 20px;
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: #ffffff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.4);
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+      font-family: inherit;
+    }
+
+    .btn-auth-submit:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(37, 99, 235, 0.55);
+    }
+
+    .btn-auth-submit:active {
+      transform: translateY(0);
+    }
+
+    .btn-auth-submit:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .spinner-auth {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .auth-alert {
+      padding: 12px 16px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 0.86rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      line-height: 1.4;
+    }
+
+    .auth-alert-error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+    }
+
+    .auth-alert-success {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #6ee7b7;
+    }
+
+    .demo-accounts-strip {
+      margin-top: 26px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .demo-strip-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .demo-pills-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .demo-pill-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: 0.76rem;
+      color: #cbd5e1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-align: left;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      font-family: inherit;
+    }
+
+    .demo-pill-btn:hover {
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(59, 130, 246, 0.35);
+      color: #93c5fd;
+    }
+
+    .auth-footer {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 0.88rem;
+      color: #94a3b8;
+    }
+
+    .auth-footer a {
+      color: #60a5fa;
+      text-decoration: none;
+      font-weight: 700;
+      margin-left: 4px;
+    }
+
+    .auth-footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body class="auth-body">
+  <div class="auth-bg-grid"></div>
+
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="brand-logo-wrap">🛡️</div>
+        <h1 class="auth-title">Welcome Back to NexaPay</h1>
+        <p class="auth-subtitle">Secure access to your smarter financial experience.</p>
+        <div>
+          <span class="security-badge">🔒 256-Bit SSL Encrypted | FinTech Security Shield</span>
+        </div>
+      </div>
+
+      <!-- Server Flash Message or Error Box -->
+      {% if error %}
+      <div class="auth-alert auth-alert-error" id="auth-alert-box">
+        <span>⚠️</span>
+        <span>{{ error }}</span>
+      </div>
+      {% elif success %}
+      <div class="auth-alert auth-alert-success" id="auth-alert-box">
+        <span>✅</span>
+        <span>{{ success }}</span>
+      </div>
+      {% else %}
+      <div class="auth-alert auth-alert-error" id="auth-alert-box" style="display: none;">
+        <span>⚠️</span>
+        <span id="auth-alert-text"></span>
+      </div>
+      {% endif %}
+
+      <form id="form-login" method="POST" action="/login" onsubmit="return handleLoginSubmit(event)">
+        <input type="hidden" name="next" value="{{ next_url or '' }}">
+
+        <div class="form-group-auth">
+          <label class="form-label-auth" for="login-identifier">Email Address or Username</label>
+          <div class="input-wrapper-auth">
+            <span class="input-icon-auth">✉️</span>
+            <input 
+              type="text" 
+              id="login-identifier" 
+              name="identifier" 
+              class="form-control-auth" 
+              placeholder="e.g. individual@nexapay.local" 
+              required 
+              autocomplete="username"
+              value="{{ identifier or '' }}"
+            >
+          </div>
+        </div>
+
+        <div class="form-group-auth">
+          <label class="form-label-auth" for="login-password">Password</label>
+          <div class="input-wrapper-auth">
+            <span class="input-icon-auth">🔒</span>
+            <input 
+              type="password" 
+              id="login-password" 
+              name="password" 
+              class="form-control-auth" 
+              placeholder="Enter your account password" 
+              required 
+              autocomplete="current-password"
+            >
+            <button 
+              type="button" 
+              class="pwd-toggle-btn" 
+              id="btn-toggle-pwd" 
+              onclick="togglePasswordVisibility('login-password', 'btn-toggle-pwd')"
+              title="Show/hide password"
+            >
+              👁️
+            </button>
+          </div>
+        </div>
+
+        <div class="auth-options">
+          <label class="remember-label">
+            <input type="checkbox" name="remember_me" id="remember-me" value="1" checked>
+            <span>Remember me</span>
+          </label>
+          <a href="/forgot-password" class="forgot-link">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn-auth-submit" id="btn-login-submit">
+          <span class="spinner-auth" id="login-spinner"></span>
+          <span id="btn-login-text">Sign In to NexaPay 🚀</span>
+        </button>
+      </form>
+
+      <!-- Quick Demo Login Selection for Hackathon Evaluators -->
+      <div class="demo-accounts-strip">
+        <div class="demo-strip-title">
+          <span>⚡ One-Click Demo Role Login</span>
+          <span style="font-size: 0.68rem; color: #3b82f6;">PASS: demo123</span>
+        </div>
+        <div class="demo-pills-grid">
+          <button type="button" class="demo-pill-btn" onclick="fillDemoCredentials('individual@nexapay.local', 'demo123')">
+            <span>👤</span>
+            <div>
+              <strong>Individual</strong>
+              <div style="font-size: 0.68rem; color: #94a3b8;">Aditya Verma</div>
+            </div>
+          </button>
+          <button type="button" class="demo-pill-btn" onclick="fillDemoCredentials('shop@nexapay.local', 'demo123')">
+            <span>🏪</span>
+            <div>
+              <strong>Shop Owner</strong>
+              <div style="font-size: 0.68rem; color: #94a3b8;">Rajesh Kumar</div>
+            </div>
+          </button>
+          <button type="button" class="demo-pill-btn" onclick="fillDemoCredentials('business@nexapay.local', 'demo123')">
+            <span>💼</span>
+            <div>
+              <strong>Business</strong>
+              <div style="font-size: 0.68rem; color: #94a3b8;">Priya Sharma</div>
+            </div>
+          </button>
+          <button type="button" class="demo-pill-btn" onclick="fillDemoCredentials('admin@nexapay.local', 'demo123')">
+            <span>🛡️</span>
+            <div>
+              <strong>Admin / Reviewer</strong>
+              <div style="font-size: 0.68rem; color: #94a3b8;">Vikram Singh</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div class="auth-footer">
+        Don't have an account yet? 
+        <a href="/register">Create an account</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function togglePasswordVisibility(inputId, btnId) {
+      const input = document.getElementById(inputId);
+      const btn = document.getElementById(btnId);
+      if (input.type === "password") {
+        input.type = "text";
+        btn.textContent = "🙈";
+      } else {
+        input.type = "password";
+        btn.textContent = "👁️";
+      }
+    }
+
+    function fillDemoCredentials(email, pwd) {
+      const identInput = document.getElementById("login-identifier");
+      const pwdInput = document.getElementById("login-password");
+      identInput.value = email;
+      pwdInput.value = pwd;
+      
+      // Auto-submit for effortless evaluation
+      const form = document.getElementById("form-login");
+      const btn = document.getElementById("btn-login-submit");
+      const spinner = document.getElementById("login-spinner");
+      const text = document.getElementById("btn-login-text");
+      
+      btn.disabled = true;
+      spinner.style.display = "inline-block";
+      text.textContent = "Signing In...";
+      form.submit();
+    }
+
+    function handleLoginSubmit(e) {
+      const ident = document.getElementById("login-identifier").value.trim();
+      const pwd = document.getElementById("login-password").value;
+      const alertBox = document.getElementById("auth-alert-box");
+      const alertText = document.getElementById("auth-alert-text");
+
+      if (!ident || !pwd) {
+        e.preventDefault();
+        alertBox.style.display = "flex";
+        alertBox.className = "auth-alert auth-alert-error";
+        alertText.textContent = "Please enter both your email/username and password.";
+        return false;
+      }
+
+      // Show spinner
+      const btn = document.getElementById("btn-login-submit");
+      const spinner = document.getElementById("login-spinner");
+      const text = document.getElementById("btn-login-text");
+      btn.disabled = true;
+      spinner.style.display = "inline-block";
+      text.textContent = "Authenticating with FinTech Shield...";
+      return true;
+    }
+  </script>
+</body>
+</html>

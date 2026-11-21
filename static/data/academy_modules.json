@@ -1,0 +1,262 @@
+[
+  {
+    "id": 1,
+    "title": "UPI Payment Basics & The Reverse-Payment Scam",
+    "icon": "💸",
+    "duration": "3 min",
+    "difficulty": "Beginner",
+    "summary": "Understand how UPI works and why you NEVER enter your UPI PIN to receive money.",
+    "content": "One of the most widespread scams across India is the 'Reverse-Payment Scam'. Scammers claim they are sending you money (e.g., OLX buyer, cashback, insurance refund) and send you a payment collect request or ask you to scan a QR code and enter your UPI PIN. The Golden Rule of UPI is: Your UPI PIN is ONLY entered when money is leaving your bank account. You NEVER need to enter your PIN to receive money.",
+    "rules": [
+      "NEVER enter UPI PIN to receive money or cashbacks.",
+      "A QR code from someone else is ALWAYS a debit request.",
+      "Check the SMS from your bank—if funds are credited, your balance increases without any PIN."
+    ],
+    "quiz": [
+      {
+        "question": "A buyer on OLX sends you a screenshot and asks you to enter your UPI PIN to receive payment. What should you do?",
+        "options": [
+          "Enter PIN quickly to confirm you received the amount.",
+          "Refuse immediately—entering UPI PIN debits money, never receives it.",
+          "Share your OTP instead of PIN."
+        ],
+        "answer_index": 1,
+        "explanation": "UPI PIN is only used for authorizing debits. Entering a PIN will immediately transfer money out of your account!"
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "title": "Electricity Bill Power-Cut Trap",
+    "icon": "⚡",
+    "duration": "4 min",
+    "difficulty": "Beginner",
+    "summary": "Spot bogus disconnection threats demanding calls to personal mobile numbers.",
+    "content": "Fraudsters broadcast millions of SMS messages: 'Dear consumer, your electricity power will be disconnected at 9:30 PM tonight because your previous month bill was not updated. Call electricity officer at 98xxxxxxx.' When victims call in panic, scammers instruct them to install remote access apps (AnyDesk, TeamViewer) or pay Rs 10 via a malicious link to 'update the bill', which drains their bank account.",
+    "rules": [
+      "Government electricity boards never send messages from personal 10-digit mobile numbers.",
+      "Disconnections follow statutory formal physical notices, never instant midnight threats.",
+      "Never install any screen sharing application recommended by callers."
+    ],
+    "quiz": [
+      {
+        "question": "You get an SMS saying power will be disconnected tonight unless you call a 10-digit mobile number. What is the safest action?",
+        "options": [
+          "Call the number immediately to avoid power disconnection.",
+          "Download the APK link they send to pay the Rs 10 fee.",
+          "Ignore the SMS and verify bill payment directly on the official electricity board website."
+        ],
+        "answer_index": 2,
+        "explanation": "Utility providers never mandate calling personal numbers or downloading APKs. Check your official electricity portal."
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "title": "Phishing & Lookalike Bank Websites",
+    "icon": "🎣",
+    "duration": "4 min",
+    "difficulty": "Intermediate",
+    "summary": "Identify lookalike URLs, deceptive TLDs, and fake banking portals.",
+    "content": "Phishing sites replicate authentic banking interfaces with astonishing visual accuracy. Attackers use homoglyph domains, deceptive hyphens (e.g. sbi-kyc-verification.xyz), and sponsored Google ads to trick victims into entering internet banking passwords, OTPs, and debit card PINs.",
+    "rules": [
+      "Always type the bank's official URL directly into your browser bookmark.",
+      "A padlock icon (HTTPS) only means connection is encrypted—it does NOT mean the website is legitimate.",
+      "Inspect the domain suffix: banks operate on .com, .co.in, or verified banking domains, never .xyz, .top, or .buzz."
+    ],
+    "quiz": [
+      {
+        "question": "Which of the following URLs is a legitimate State Bank of India portal?",
+        "options": [
+          "http://sbi-netbanking-verify.xyz/login",
+          "https://onlinesbi.sbi",
+          "http://192.168.1.55/sbi/login.html"
+        ],
+        "answer_index": 1,
+        "explanation": "State Bank of India operates on its exclusive verified domain .sbi (onlinesbi.sbi) and sbi.co.in."
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "title": "QR Code Tampering in Retail Outlets",
+    "icon": "📷",
+    "duration": "3 min",
+    "difficulty": "Intermediate",
+    "summary": "Protect yourself from rogue QR code stickers pasted over legitimate shop merchant codes.",
+    "content": "Criminals physically visit busy retail shops, petrol pumps, and restaurants and paste their own scam QR sticker directly over the shop owner's merchant QR code. When customers scan and pay, money goes into the scammer's mule account. Additionally, malicious QRs can launch auto-debit approval requests.",
+    "rules": [
+      "Check if the QR sticker is peeling, pasted over another code, or feels unusually thick.",
+      "Always verify the payee merchant name spoken aloud by the soundbox or displayed on the counter.",
+      "Inspect the payment confirmation screen before pressing your PIN."
+    ],
+    "quiz": [
+      {
+        "question": "When scanning a shop's QR code, the name displayed on your phone is 'Raju Kumar' instead of 'Sharma Grocery Store'. What should you do?",
+        "options": [
+          "Complete the payment anyway.",
+          "Pause and ask the shopkeeper to confirm if Raju Kumar is their authorized account.",
+          "Enter your PIN twice."
+        ],
+        "answer_index": 1,
+        "explanation": "Mismatched payee names often indicate sticker tampering or fraudulent QR replacement. Always verify with merchant."
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "title": "SIM Swap & eSIM Social Engineering",
+    "icon": "📶",
+    "duration": "4 min",
+    "difficulty": "Advanced",
+    "summary": "How attackers hijack your phone number to intercept banking OTPs.",
+    "content": "In a SIM swap attack, the fraudster impersonates you and convinces your telecom operator to issue a replacement SIM card or activate an eSIM QR code. Once active, the victim's physical phone loses network signal, and all subsequent bank SMS OTPs and phone calls go directly to the attacker's device.",
+    "rules": [
+      "If your phone unexpectedly loses cellular connectivity for prolonged periods, contact your carrier immediately.",
+      "Never forward eSIM activation QR codes or SMS confirmation codes to strangers claiming to upgrade your 4G to 5G.",
+      "Enable biometric or app-based 2FA instead of SMS-only authentication wherever possible."
+    ],
+    "quiz": [
+      {
+        "question": "A caller claiming to be from Airtel offers free 5G upgrade and asks you to forward an eSIM activation email. What should you do?",
+        "options": [
+          "Forward the email to get fast 5G speeds.",
+          "Delete the email and block the caller—this is an eSIM swap hijack attempt.",
+          "Share your Aadhaar number to verify."
+        ],
+        "answer_index": 1,
+        "explanation": "Carriers never call demanding you forward eSIM QR codes. Doing so immediately transfers your mobile number to the scammer."
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "title": "Fake Customer Care Numbers on Search Engines",
+    "icon": "📞",
+    "duration": "3 min",
+    "difficulty": "Beginner",
+    "summary": "Why you should never trust phone numbers found on Google search results or Google Maps.",
+    "content": "Scammers edit phone numbers on Google Maps listings and post sponsored advertisements pretending to be helpline numbers for Swiggy, Zomato, Amazon, SBI, Indigo, and courier companies. Desperate victims calling for refunds reach scam call centers that demand remote desktop app installation.",
+    "rules": [
+      "Never search for customer care numbers on Google Search or Google Maps.",
+      "Always retrieve customer care numbers directly from inside the official mobile application or official website contact page.",
+      "Customer support will never ask for your debit card CVV, expiry date, or OTP to process a refund."
+    ],
+    "quiz": [
+      {
+        "question": "Where should you locate the genuine customer support contact for your food delivery or banking app?",
+        "options": [
+          "The first sponsored ad on Google search.",
+          "Inside the 'Help & Support' section within the official verified app itself.",
+          "A random comment on Facebook."
+        ],
+        "answer_index": 1,
+        "explanation": "Search engines frequently display edited scam numbers. Always use in-app verified support channels."
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "title": "Investment & Task/Part-Time Job Traps",
+    "icon": "📈",
+    "duration": "4 min",
+    "difficulty": "Intermediate",
+    "summary": "Unmasking Telegram task scams, fake crypto platforms, and prepaid task Ponzi schemes.",
+    "content": "Victims are added to Telegram groups and offered Rs 150 per YouTube video liked or Google review posted. Initially, scammers credit small real amounts (Rs 300 - 800) to gain trust. Next, they demand 'prepaid task investments' of Rs 5,000, Rs 50,000, and lakhs with promised 300% returns, after which all funds are frozen and the group disappears.",
+    "rules": [
+      "No legitimate business pays thousands of rupees for simply tapping 'like' on YouTube videos.",
+      "Any job that requires YOU to deposit money to unlock tasks is 100% a scam.",
+      "Do not trust screenshots of high bank balances in Telegram groups—they are fabricated by bot accomplices."
+    ],
+    "quiz": [
+      {
+        "question": "A Telegram channel pays you Rs 300 for liking 3 videos, then asks you to invest Rs 5,000 for a guaranteed return of Rs 15,000. What is this?",
+        "options": [
+          "A high-growth crypto opportunity.",
+          "A classic prepaid task Ponzi scam—take no further action and exit the group.",
+          "A government-approved part-time job."
+        ],
+        "answer_index": 1,
+        "explanation": "Initial small payouts are bait to deceive victims into transferring larger sums that can never be withdrawn."
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "title": "Digital Arrest & Police/CBI Impersonation",
+    "icon": "⚖️",
+    "duration": "5 min",
+    "difficulty": "Advanced",
+    "summary": "Recognize terrifying video call extortion schemes masquerading as law enforcement agencies.",
+    "content": "Criminals dress in fake police or customs uniforms, create artificial police station backdrops on Skype/WhatsApp video calls, and accuse the victim of having sent parcels containing drugs or money laundering. They claim the victim is under 'Digital Arrest' and must transfer their savings to an 'RBI Safe Verification Account' to prove innocence.",
+    "rules": [
+      "There is NO provision for 'Digital Arrest' in the Indian Penal Code, CrPC, or Indian law.",
+      "Police, CBI, ED, and customs never conduct interrogations or demand fund transfers over WhatsApp or Skype calls.",
+      "If threatened with digital arrest, disconnect immediately and report to local police or call 1930."
+    ],
+    "quiz": [
+      {
+        "question": "A caller wearing a police uniform on a WhatsApp video call tells you your Aadhaar is linked to illegal parcels and orders you to stay on video under 'Digital Arrest'. What is true?",
+        "options": [
+          "Digital arrest is real and you must comply.",
+          "There is no legal concept of Digital Arrest—it is an extortion scam. Hang up immediately.",
+          "You must transfer your savings to the account they specify to avoid arrest."
+        ],
+        "answer_index": 1,
+        "explanation": "Digital arrest does not exist under Indian law. It is pure psychological extortion by cyber gangs."
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "title": "Instant Loan Apps & Contact List Extortion",
+    "icon": "📱",
+    "duration": "4 min",
+    "difficulty": "Intermediate",
+    "summary": "Beware of unregulated lending apps that steal your contact book and photos for blackmail.",
+    "content": "Unlicensed instant loan apps promise loans in 5 minutes with zero documentation. Upon installation, they demand full permissions to your Contact List, Camera, and Photo Gallery. Even after repayment or without taking a loan, scammers morph personal photos and send threatening messages to your entire contact list and family.",
+    "rules": [
+      "Check if the lending app is affiliated with an RBI-registered Non-Banking Financial Company (NBFC).",
+      "Never grant contact book or photo gallery permissions to lending apps.",
+      "Never download loan apps as APK files from WhatsApp, SMS, or third-party websites."
+    ],
+    "quiz": [
+      {
+        "question": "A loan app requests permission to access your entire Contact List and Photo Gallery before giving a Rs 2,000 loan. What should you do?",
+        "options": [
+          "Grant all permissions to get the loan faster.",
+          "Reject the app and uninstall immediately—genuine lenders never require access to private photos and contacts.",
+          "Provide a fake photo instead."
+        ],
+        "answer_index": 1,
+        "explanation": "Lending apps demanding access to your contacts and photo gallery use this data to blackmail and harass your acquaintances."
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "title": "The Golden Defense: 1930 & Cybercrime Portal Filing",
+    "icon": "🛡️",
+    "duration": "3 min",
+    "difficulty": "Beginner",
+    "summary": "Immediate action protocol if fraud occurs: The Golden Hour, 1930 helpline, and evidence preservation.",
+    "content": "If you or a family member fall victim to a financial scam, timing is everything. Acting within the 'Golden Hour' (first 1 to 2 hours) allows law enforcement to freeze funds in the scammer's bank or wallet before withdrawal. Dial national cybercrime helpline 1930 immediately and file a report at cybercrime.gov.in.",
+    "rules": [
+      "Call national cybercrime helpline 1930 immediately upon unauthorized transaction.",
+      "Block your ATM card, netbanking, and UPI ID through your bank's emergency lock service.",
+      "Preserve all transaction IDs, SMS messages, call logs, and WhatsApp chat screenshots as evidence."
+    ],
+    "quiz": [
+      {
+        "question": "What is the official National Cyber Crime Helpline number in India to report payment fraud within the Golden Hour?",
+        "options": [
+          "100",
+          "1930",
+          "911"
+        ],
+        "answer_index": 1,
+        "explanation": "1930 is India's dedicated National Cyber Crime Reporting helpline for financial cyber fraud."
+      }
+    ]
+  }
+]

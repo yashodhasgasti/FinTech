@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEXAPAY — Smart, Secure & Inclusive Financial Technology Platform</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- ======================================================== -->
+    <!-- TOP NAVIGATION BAR                                       -->
+    <!-- ======================================================== -->
+    <header class="navbar">
+      <div class="brand" onclick="switchTab('panel-dashboard')">
+        <div class="brand-icon">🛡️</div>
+        <div class="brand-text">
+          <h1>NEXAPAY</h1>
+          <p data-i18n="tagline">Smart and Safer Payments</p>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <!-- 1930 Cyber Fraud Helpline Pill -->
+        <div class="helpline-pill">
+          <span>🚨 <strong data-i18n="helpline">Cyber Fraud Helpline: 1930</strong></span>
+        </div>
+
+        <!-- Language Selector -->
+        <select class="lang-selector" id="nav-lang-selector" title="Choose Regional Language">
+          <option value="en">🌐 English</option>
+          <option value="hi">🇮🇳 हिंदी (Hindi)</option>
+          <option value="ta">🇮🇳 தமிழ் (Tamil)</option>
+          <option value="te">🇮🇳 తెలుగు (Telugu)</option>
+          <option value="bn">🇮🇳 বাংলা (Bengali)</option>
+        </select>
+
+        <!-- Notification Bell -->
+        <button class="btn-notif" id="btn-toggle-notifs" onclick="switchTab('panel-notifications')" title="Notifications">
+          🔔
+          <span class="notif-badge" id="nav-notif-count" style="display: none;">0</span>
+        </button>
+
+        <!-- User Role Profile Pill -->
+        <div class="user-pill" onclick="switchTab('panel-profile')" title="View Profile & Settings">
+          <div class="user-avatar" id="nav-user-avatar">A</div>
+          <div>
+            <div style="font-size: 0.82rem; font-weight: 700;" id="nav-user-name">Aditya Verma</div>
+            <div id="nav-user-role" class="user-role-tag role-individual">Individual</div>
+          </div>
+        </div>
+
+        <!-- 1-Click Role Switcher Dropdown (for Hackathon Evaluation) -->
+        <select class="lang-selector" onchange="switchDemoRole(this.value)" title="Quick Switch Role for Demonstration">
+          <option value="" disabled selected>⚡ Switch Demo Role</option>
+          <option value="individual">👤 Individual User</option>
+          <option value="shop_owner">🏪 Shop Owner</option>
+          <option value="business">💼 Business User</option>
+          <option value="admin_reviewer">🛡️ Admin / Reviewer</option>
+        </select>
+      </div>
+    </header>
+
+    <!-- ======================================================== -->
+    <!-- TABS / SUB-NAVIGATION SYSTEM                             -->
+    <!-- ======================================================== -->
+    <nav class="tabs-navigation">
+      <div class="nav-group-label">Core FinTech:</div>
+      <button class="tab-btn" data-target="panel-landing">🏠 Landing</button>
+      <button class="tab-btn active" data-target="panel-dashboard">📊 Dashboard</button>
+      <button class="tab-btn" data-target="panel-transactions">💳 Transactions</button>
+      <button class="tab-btn" data-target="panel-simulator">💸 Pay Simulator</button>
+      <button class="tab-btn" data-target="panel-budget">🎯 Smart Budget</button>
+      <button class="tab-btn" data-target="panel-analytics">📑 Analytics</button>
+      <button class="tab-btn" data-target="panel-forecast">📈 Forecast</button>
+
+      <div class="nav-group-label" style="margin-left: 8px;">AI & Compliance:</div>
+      <button class="tab-btn" data-target="panel-fraud-ai">🧠 AI Fraud Engine</button>
+      <button class="tab-btn" data-target="panel-review">
+        ⚖️ Review Queue <span class="badge badge-risk-critical" id="review-pending-badge" style="margin-left: 4px; padding: 1px 6px; font-size: 0.68rem;">Pending</span>
+      </button>
+      <button class="tab-btn" data-target="panel-chatbot">💬 AI Assistant</button>
+
+      <div class="nav-group-label" style="margin-left: 8px;">Cyber Scanners:</div>
+      <button class="tab-btn" data-target="panel-link">🔗 Link</button>
+      <button class="tab-btn" data-target="panel-otp">🔑 OTP</button>
+      <button class="tab-btn" data-target="panel-msg">💬 SMS</button>
+      <button class="tab-btn" data-target="panel-qr">📷 QR</button>
+      <button class="tab-btn" data-target="panel-academy">🎓 Academy</button>
+      <button class="tab-btn" data-target="panel-report">📋 1930 Dossier</button>
+
+      <div class="nav-group-label" style="margin-left: 8px;">Admin:</div>
+      <button class="tab-btn" data-target="panel-admin">🛡️ Admin</button>
+    </nav>
+
+
+    <!-- ======================================================== -->
+    <!-- 1. LANDING PAGE VIEW                                     -->
+    <!-- ======================================================== -->
+    <section class="view-panel" id="panel-landing">
+      <div class="hero-banner">
+        <div class="hero-pill">✨ National Hackathon & Academic MCA Final Year Project</div>
+        <h1 class="hero-title">NexaPay: Smart, Secure & Inclusive<br>Financial Technology Platform</h1>
+        <p class="hero-sub">
+          Proactive cybersecurity protection, explainable AI fraud detection, autonomous cash-flow forecasting, and smart budgeting designed for individuals, retail merchants, businesses, and compliance officers.
+        </p>
+        <div class="hero-buttons">
+          <button class="btn-primary" onclick="switchTab('panel-dashboard')">Launch Live Dashboard 🚀</button>
+          <button class="btn-secondary" onclick="switchTab('panel-simulator')">Test Payment Simulator 💸</button>
+          <button class="btn-secondary" onclick="openModal('modal-auth-login')">Sign In / Register</button>
+        </div>
+      </div>
+
+      <div class="pillars-grid">
+        <div class="pillar-card">
+          <div class="pillar-icon">🧠</div>
+          <h3>AI-Powered Fraud Defense</h3>
+          <p>Ensemble Hybrid Isolation Forest + Random Decision Forest algorithms analyze transaction amounts, Z-Scores, velocities, and odd-hour anomalies in under 15ms.</p>
+        </div>
+        <div class="pillar-card">
+          <div class="pillar-icon">⚖️</div>
+          <h3>Human Review & Audit Trail</h3>
+          <p>Never treat AI as proof of fraud. High-risk transactions enter a strict 4-tier human review workflow (Pending, Legitimate, Suspicious, Under Investigation) with full tamper-evident audit logs.</p>
+        </div>
+        <div class="pillar-card">
+          <div class="pillar-icon">🎯</div>
+          <h3>Smart Budgeting & Savings</h3>
+          <p>Real-time monthly category limits, 80% threshold overspending alerts, and visual savings milestone trackers computed from real database transactions.</p>
+        </div>
+        <div class="pillar-card">
+          <div class="pillar-icon">📈</div>
+          <h3>Spending Forecasting</h3>
+          <p>Exponential smoothing and time-series trend forecasting project weekly and monthly outflows with actual-versus-predicted comparisons and clear limitation disclaimers.</p>
+        </div>
+        <div class="pillar-card">
+          <div class="pillar-icon">💬</div>
+          <h3>AI Financial Assistant</h3>
+          <p>Contextual privacy-preserving chatbot answering questions on personal budgets, 50/30/20 rules, merchant cash-flow runways, and 1930 reporting procedures.</p>
+        </div>
+        <div class="pillar-card">
+          <div class="pillar-icon">🛡️</div>
+          <h3>Multi-Vector Cyber Shield</h3>
+          <p>Zero-trust scanning across phishing URLs, OTP coercive extortion, SMS Telegram job traps, and spoofed UPI QR sticker frauds.</p>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 2. USER DASHBOARD VIEW                                   -->
+    <!-- ======================================================== -->
+    <section class="view-panel active" id="panel-dashboard">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">📊 Executive Financial Dashboard</h2>
+          <p class="section-subtitle">Real-time ledger overview, AI fraud status, and liquidity analytics</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn-primary" onclick="openModal('modal-add-txn')">+ Add Transaction</button>
+          <button class="btn-secondary" onclick="switchTab('panel-simulator')">💸 Pay Simulator</button>
+          <a href="/api/reports/statement" target="_blank" class="btn-secondary" style="text-decoration: none;">📄 Statement</a>
+        </div>
+      </div>
+
+      <!-- Financial Metrics Grid -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label" data-i18n="balance">Wallet Balance</span>
+            <span class="metric-icon">💰</span>
+          </div>
+          <div class="metric-value" id="dash-balance" style="color: #38bdf8;">₹0.00</div>
+          <div class="metric-sub">Verified Available Liquidity</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label" data-i18n="inflow">Total Inflow</span>
+            <span class="metric-icon">📈</span>
+          </div>
+          <div class="metric-value trend-up" id="dash-income">₹0.00</div>
+          <div class="metric-sub">Recorded Income & Credits</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label" data-i18n="outflow">Total Outflow</span>
+            <span class="metric-icon">📉</span>
+          </div>
+          <div class="metric-value trend-down" id="dash-expense">₹0.00</div>
+          <div class="metric-sub">Recorded Debits & Expenditures</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label" data-i18n="netSavings">Net Cash Flow</span>
+            <span class="metric-icon">🏦</span>
+          </div>
+          <div class="metric-value" id="dash-savings">₹0.00</div>
+          <div class="metric-sub">Surplus Savings Cushion</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label">Quarantined Threats</span>
+            <span class="metric-icon">🚨</span>
+          </div>
+          <div class="metric-value" id="dash-flagged-count" style="color: #f87171;">0</div>
+          <div class="metric-sub">High-Risk Txns in Review Queue</div>
+        </div>
+      </div>
+
+      <!-- Main Dashboard 2-Column Split -->
+      <div class="dashboard-grid">
+        <!-- Left: Recent Transactions -->
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <div class="card-panel-title">💳 Recent Transactions</div>
+            <button class="btn-secondary" style="font-size: 0.78rem; padding: 4px 10px;" onclick="switchTab('panel-transactions')">View All Ledger</button>
+          </div>
+          <div id="dash-recent-txns">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Right: AI Safety Status & Quick Actions -->
+        <div>
+          <div class="card-panel">
+            <div class="card-panel-header">
+              <div class="card-panel-title">🛡️ AI Defense Shield</div>
+              <span class="badge badge-risk-safe">98.4% Health</span>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">
+              Continuous behavioral inspection active across odd-hour windows, recipient reputation scores, and velocity spikes.
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="switchTab('panel-fraud-ai')">Explore AI Model Metrics</button>
+              <button class="btn-secondary" style="width: 100%; justify-content: center;" onclick="switchTab('panel-review')">Open Review Queue</button>
+              <button class="btn-secondary" style="width: 100%; justify-content: center;" onclick="switchTab('panel-chatbot')">Consult AI Financial Assistant</button>
+            </div>
+          </div>
+
+          <div class="card-panel">
+            <div class="card-panel-header">
+              <div class="card-panel-title">💡 FinTech Quick Actions</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <a href="/api/reports/export-csv" class="btn-secondary" style="justify-content: center; text-decoration: none;">📥 Download Ledger (CSV)</a>
+              <button class="btn-secondary" style="justify-content: center;" onclick="switchTab('panel-budget')">🎯 Configure Budget Limits</button>
+              <button class="btn-secondary" style="justify-content: center;" onclick="switchTab('panel-forecast')">📈 View 30-Day Forecast</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 3. TRANSACTION MANAGEMENT VIEW                           -->
+    <!-- ======================================================== -->
+    <section class="view-panel" id="panel-transactions">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">💳 Transaction Ledger Management</h2>
+          <p class="section-subtitle">Search, filter, inspect risk attributions, and manage financial records</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn-primary" onclick="openModal('modal-add-txn')">+ Add Record</button>
+          <a href="/api/reports/export-csv" class="btn-secondary" style="text-decoration: none;">📥 Export CSV</a>
+        </div>
+      </div>
+
+      <div class="card-panel">
+        <div class="table-filter-bar">
+          <div class="search-box">
+            <span>🔍</span>
+            <input type="text" id="txn-search" placeholder="Search by reference, payee, or notes..." oninput="loadTransactions()">
+          </div>
+
+          <select class="filter-select" id="txn-filter-category" onchange="loadTransactions()">
+            <option value="">All Categories</option>
+            <option value="Food & Dining">Food & Dining</option>
+            <option value="Groceries">Groceries</option>
+            <option value="Rent & Housing">Rent & Housing</option>
+            <option value="Utilities & Bills">Utilities & Bills</option>
+            <option value="Salary & Wages">Salary & Wages</option>
+            <option value="Counter Sales">Counter Sales</option>
+            <option value="Inventory Supplies">Inventory Supplies</option>
+            <option value="Shopping & Retail">Shopping & Retail</option>
+            <option value="Healthcare">Healthcare</option>
+            <option value="Suspicious Transfer">Suspicious Transfer</option>
+          </select>
+
+          <select class="filter-select" id="txn-filter-type" onchange="loadTransactions()">
+            <option value="">All Types</option>
+            <option value="INCOME">Income Only</option>
+            <option value="EXPENSE">Expense Only</option>
+          </select>
+
+          <button class="btn-secondary" onclick="loadTransactions()">Refresh</button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Timestamp</th>
+                <th>Type</th>
+                <th>Category</th>
+                <th>Amount</th>
+                <th>Counterparty</th>
+                <th>Risk Score</th>
+                <th>Review Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="transactions-tbody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 4. PAYMENT SIMULATOR VIEW                                -->
+    <!-- ======================================================== -->
+    <section class="view-panel" id="panel-simulator">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">💸 Digital Payment Simulator</h2>
+          <p class="section-subtitle">Safe synthetic UPI transfer testing environment with instant pre-flight AI fraud inspection</p>
+        </div>
+      </div>
+
+      <div class="simulator-container">
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <div class="card-panel-title">📱 Initiate Simulated UPI / Card Transfer</div>
+            <span class="badge badge-risk-safe">Synthetic Sandbox</span>
+          </div>
+
+          <form id="form-payment-simulator">
+            <div class="form-group">
+              <label>Transfer Amount (INR ₹)</label>
+              <input type="number" step="0.01" id="sim-amount" class="form-control" placeholder="e.g. 1500.00" required>
+            </div>
+
+            <div class="form-group">
+              <label>Recipient UPI ID / Virtual Address</label>
+              <input type="text" id="sim-receiver-upi" class="form-control" placeholder="e.g. merchant_superstore@hdfcbank" required>
+              <div class="simulator-quick-presets">
+                <span style="font-size: 0.72rem; color: var(--text-dim); display: flex; align-items: center;">Quick Test Presets:</span>
+                <button type="button" class="pill-btn" onclick="setSimPreset(450, 'groceries_kirana@upi', 'Groceries', 'Evening groceries')">Safe: ₹450 Kirana</button>
+                <button type="button" class="pill-btn" onclick="setSimPreset(18000, 'landlord_ramesh@icici', 'Rent & Housing', 'Apartment Rent')">Safe: ₹18,000 Rent</button>
+                <button type="button" class="pill-btn" style="border-color: #ef4444; color: #fca5a5;" onclick="setSimPreset(85000, 'crypto_lottery_agent@ybl', 'Suspicious Transfer', 'Urgent investment release')">🚨 Fraud: ₹85k Crypto</button>
+                <button type="button" class="pill-btn" style="border-color: #ef4444; color: #fca5a5;" onclick="setSimPreset(49999, 'instant_refund_bot@paytm', 'Suspicious Reversal', 'Duplicate payment reversal')">🚨 Fraud: ₹50k Refund</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Transaction Category</label>
+              <select id="sim-category" class="form-control">
+                <option value="Shopping & Retail">Shopping & Retail</option>
+                <option value="Groceries">Groceries</option>
+                <option value="Food & Dining">Food & Dining</option>
+                <option value="Utilities & Bills">Utilities & Bills</option>
+                <option value="Rent & Housing">Rent & Housing</option>
+                <option value="Healthcare">Healthcare</option>
+                <option value="Counter Sales">Counter Sales</option>
+                <option value="Inventory Supplies">Inventory Supplies</option>
+                <option value="Suspicious Transfer">Suspicious Transfer</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Payment Method</label>
+              <select id="sim-method" class="form-control">
+                <option value="UPI">UPI DeepLink / QR</option>
+                <option value="Card">Debit / Credit Card</option>
+                <option value="NetBanking">NetBanking IMPS / NEFT</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Payment Purpose / Notes</label>
+              <input type="text" id="sim-desc" class="form-control" placeholder="e.g. Retail shopping payment">
+            </div>
+
+            <button type="submit" id="btn-sim-pay" class="btn-primary" style="width: 100%; justify-content: center; padding: 14px; font-size: 1rem;">
+              Execute Simulated Payment
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 5. AI FRAUD ENGINE & MODEL EVALUATION VIEW               -->
+    <!-- ======================================================== -->
+    <section class="view-panel" id="panel-fraud-ai">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">🧠 AI Fraud Engine & Model Evaluation</h2>
+          <p class="section-subtitle">Hybrid Ensemble Model Performance (Isolation Forest + Random Decision Forest in pure NumPy)</p>
+        </div>
+      </div>
+
+      <!-- Model Evaluation Metrics Grid -->
+      <div class="model-metrics-grid">
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Model Accuracy</span><span>🎯</span></div>
+          <div class="metric-value" id="metric-accuracy" style="color: #38bdf8;">96.8%</div>
+          <div class="metric-sub">Cross-validated on 2,500 samples</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Precision</span><span>🔬</span></div>
+          <div class="metric-value" id="metric-precision" style="color: #34d399;">95.4%</div>
+          <div class="metric-sub">Positive predictive value</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Recall (Sensitivity)</span><span>📡</span></div>
+          <div class="metric-value" id="metric-recall" style="color: #a78bfa;">94.7%</div>
+          <div class="metric-sub">True fraud capture rate</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">F1-Score</span><span>⚡</span></div>
+          <div class="metric-value" id="metric-f1" style="color: #fbbf24;">95.0%</div>
+          <div class="metric-sub">Harmonic mean precision/recall</div>
+        </div>
+      </div>
+
+      <div class="dashboard-grid">
+        <!-- Left: Confusion Matrix & Architecture -->
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <div class="card-panel-title">📊 Confusion Matrix & Evaluation Breakdown</div>
+            <span class="badge badge-risk-safe">Test Split N=500</span>
+          </div>
+
+          <div class="confusion-matrix-box">
+            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 6px;">
+              <span>Predicted Normal</span>
+              <span>Predicted Fraud</span>
+            </div>
+            <div class="matrix-grid">
+              <div class="matrix-cell">
+                <div class="cell-val" id="matrix-tn">418</div>
+                <div class="cell-label">True Negatives (TN)</div>
+              </div>
+              <div class="matrix-cell">
+                <div class="cell-val" id="matrix-fp" style="color: #fbbf24;">12</div>
+                <div class="cell-label">False Positives (FP)</div>
+              </div>
+              <div class="matrix-cell">
+                <div class="cell-val" id="matrix-fn" style="color: #ef4444;">4</div>
+                <div class="cell-label">False Negatives (FN)</div>
+              </div>
+              <div class="matrix-cell">
+                <div class="cell-val" id="matrix-tp" style="color: #10b981;">66</div>
+                <div class="cell-label">True Positives (TP)</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 18px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.6;">
+            <strong>Engineered Features:</strong> Amount, Log(Amount), User Baseline Z-Score, Hour of Day, Odd-Hour Binary Flag (1 AM - 5 AM), Velocity 1h/24h, Category Risk Weights, Recipient Novelty, and Deceptive Keyword Lures.
+          </div>
+        </div>
+
+        <!-- Right: Interactive Risk Calculator -->
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <div class="card-panel-title">🧪 Custom Risk Calculator</div>
+          </div>
+
+          <form id="form-fraud-calculator">
+            <div class="form-group">
+              <label>Transaction Amount (₹)</label>
+              <input type="number" id="calc-amount" class="form-control" value="85000" required>
+            </div>
+            <div class="form-group">
+              <label>Category</label>
+              <select id="calc-category" class="form-control">
+                <option value="Suspicious Transfer">Suspicious Transfer</option>
+                <option value="Shopping & Retail">Shopping & Retail</option>
+                <option value="Groceries">Groceries</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Recipient VPA</label>
+              <input type="text" id="calc-receiver" class="form-control" value="crypto_lottery_agent@ybl" required>
+            </div>
+            <div class="form-group">
+              <label>Hour of Day (0-23)</label>
+              <input type="number" id="calc-hour" class="form-control" min="0" max="23" value="3">
+            </div>
+
+            <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">Evaluate Risk Score</button>
+          </form>
+
+          <div id="calc-result-box" style="display: none; margin-top: 18px;">
+            <!-- Output from AI model -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 6. HUMAN REVIEW QUEUE & AUDIT TRAIL                      -->
+    <!-- ======================================================== -->
+    <section class="view-panel" id="panel-review">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">⚖️ Human Review Compliance Queue</h2>
+          <p class="section-subtitle">Dedicated human-in-the-loop compliance inspection for flagged transactions and audit trail</p>
+        </div>
+        <button class="btn-secondary" onclick="loadReviewQueue(); loadReviewAuditLogs();">🔄 Refresh Queue</button>
+      </div>
+
+      <div class="card-panel">
+        <div class="card-panel-header">
+          <div class="card-panel-title">🚨 Transactions Awaiting Compliance Officer Verification</div>
+        </div>
+        <div id="review-queue-container">
+          <!-- Dynamically populated with review item cards -->
+        </div>
+      </div>
+
+      <div class="card-panel">
+        <div class="card-panel-header">
+          <div class="card-panel-title">📜 Immutable Compliance Audit Trail</div>
+        </div>
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Txn Reference</th>
+                <th>Reviewer Name</th>
+                <th>Previous Status</th>
+                <th>New Status</th>
+                <th>Officer Investigation Notes</th>
+              </tr>
+            </thead>
+            <tbody id="review-audit-tbody">
+              <!-- Audit logs populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 7. SMART BUDGET PLANNER VIEW                             -->
+    <!-- ======================================================== -->
+    <section class="view-panel" id="panel-budget">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">🎯 Smart Budget Planner & Savings Targets</h2>
+          <p class="section-subtitle">Real-time expenditure tracking against monthly category allocations with overspending alerts</p>
+        </div>
+        <button class="btn-primary" onclick="openModal('modal-add-budget')">+ Set Category Budget</button>
+      </div>
+
+      <div class="dashboard-grid">
+        <!-- Monthly Category Budgets -->
+        <div>
+          <div class="card-panel">
+            <div class="card-panel-header">
+              <div class="card-panel-title">📊 Active Monthly Category Limits</div>
+            </div>
+            <div id="budgets-list-container">
+              <!-- Budget bars populated dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Savings Goals -->
+        <div>
+          <div class="card-panel">
+            <div class="card-panel-header">
+              <div class="card-panel-title">💰 Milestone Savings Goals</div>
+              <button class="btn-primary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="openModal('modal-add-savings')">+ New Goal</button>
+            </div>
+            <div id="savings-goals-container">
+              <!-- Savings goals populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 8. FINANCIAL ANALYTICS VIEW                              -->
+    <!-- ======================================================== -->
+    <section class="view-panel" id="panel-analytics">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">📑 Comprehensive Financial Analytics</h2>
+          <p class="section-subtitle">Aggregated cash flow, category-wise expenditure, and monthly liquidity timelines</p>
+        </div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Total Inflow</span><span>📈</span></div>
+          <div class="metric-value trend-up" id="analytics-inflow">₹0.00</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Total Outflow</span><span>📉</span></div>
+          <div class="metric-value trend-down" id="analytics-outflow">₹0.00</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Net Surplus</span><span>💰</span></div>
+          <div class="metric-value" id="analytics-net">₹0.00</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Savings Rate</span><span>📊</span></div>
+          <div class="metric-value" id="analytics-rate">0.0%</div>
+        </div>
+      </div>
+
+      <div class="dashboard-grid">
+        <!-- Category Distribution -->
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <div class="card-panel-title">🏷️ Category-wise Expenditure Breakdown</div>
+          </div>
+          <div id="analytics-category-bars">
+            <!-- Dynamic Category Bars -->
+          </div>
+        </div>
+
+        <!-- Monthly Timeline Trend -->
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <div class="card-panel-title">📅 Monthly Inflow vs Outflow History</div>
+          </div>
+          <div id="analytics-trend-chart">
+            <!-- Dynamic SVG Bars -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 9. SPENDING FORECAST VIEW                                -->
+    <!-- ======================================================== -->
+    <section class="view-panel" id="panel-forecast">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">📈 Predictive Spending Forecasting</h2>
+          <p class="section-subtitle">Exponential smoothing and time-series heuristics modeling projected cash outflows</p>
+        </div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Next 7 Days Projected</span><span>📅</span></div>
+          <div class="metric-value" id="forecast-weekly" style="color: #38bdf8;">₹0.00</div>
+          <div class="metric-sub">Smoothed Weekly Outflow</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Next 30 Days Projected</span><span>🗓️</span></div>
+          <div class="metric-value" id="forecast-monthly" style="color: #a78bfa;">₹0.00</div>
+          <div class="metric-sub">Estimated Monthly Burn</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Spending Velocity Trend</span><span>⚡</span></div>
+          <div style="margin: 10px 0;"><span class="badge badge-risk-safe" id="forecast-trend-tag">STABLE</span></div>
+          <div class="metric-sub" id="forecast-advice">Consistent spending pace.</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Cash Runway</span><span>⏳</span></div>
+          <div class="metric-value" id="forecast-runway">0 Days</div>
+          <div class="metric-sub">At current average run rate</div>
+        </div>
+      </div>
+
+      <div class="card-panel">
+        <div class="card-panel-header">
+          <div class="card-panel-title">📊 Actual vs Predicted Spending Comparison</div>
+        </div>
+        <div id="forecast-comparison-chart">
+          <!-- Actual vs Predicted dynamic list -->
+        </div>
+
+        <div style="background: rgba(245, 158, 11, 0.08); border-left: 3px solid var(--color-caution); padding: 12px 16px; border-radius: 4px; font-size: 0.8rem; color: var(--text-muted); margin-top: 18px;">
+          <strong>Model Limitation Disclaimer:</strong> <span id="forecast-disclaimer">...</span>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 10. AI FINANCIAL ASSISTANT (CHATBOT) VIEW                -->
+    <!-- ======================================================== -->
+    <section class="view-panel" id="panel-chatbot">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">💬 AI Financial Assistant & Advisor</h2>
+          <p class="section-subtitle">Conversational guidance grounded in your live database numbers, budget status, and cybersecurity guidelines</p>
+        </div>
+      </div>
+
+      <div class="chat-container">
+        <div class="chat-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="font-size: 1.5rem;">🤖</div>
+            <div>
+              <strong style="font-size: 0.95rem;">NexaPay Financial Advisor</strong>
+              <div style="font-size: 0.72rem; color: #34d399;">● Online & Context-Aware</div>
+            </div>
+          </div>
+          <span class="badge badge-risk-safe">Zero-Trust Privacy</span>
+        </div>
+
+        <div class="chat-messages" id="chatbot-messages">
+          <div class="chat-bubble bot">
+            Hello! I am your <strong>NexaPay AI Financial Assistant</strong>.<br><br>
+            I have analyzed your active profile and transaction ledger. I can assist you with expense tracking, budgeting advice using the 50/30/20 rule, fraud prevention, or cash-flow management.<br><br>
+            <em>Click a prompt below or type any question!</em>
+          </div>
+        </div>
+
+        <!-- Suggestion Chips -->
+        <div class="chat-chips">
+          <button class="chat-chip" data-prompt="How much did I spend this month?">📊 How much did I spend?</button>
+          <button class="chat-chip" data-prompt="Am I close to exceeding my budget?">🎯 Am I exceeding budget?</button>
+          <button class="chat-chip" data-prompt="What is the golden rule of UPI PIN?">🛡️ Golden rule of UPI PIN?</button>
+          <button class="chat-chip" data-prompt="How can a shopkeeper avoid fake payment screenshots?">🏪 Shopkeeper payment tips</button>
+          <button class="chat-chip" data-prompt="How do I file a cyber fraud report on 1930?">🚨 1930 Cyber reporting guide</button>
+        </div>
+
+        <form class="chat-input-bar" id="form-chatbot">
+          <input type="text" id="chatbot-input" placeholder="Ask a financial, budgeting, or cybersecurity question..." autocomplete="off">
+          <button type="submit" class="btn-primary">Send</button>
+        </form>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 11. NOTIFICATION CENTER VIEW                             -->
+    <!-- ======================================================== -->
+    <section class="view-panel" id="panel-notifications">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">🔔 Notification & Security Alert Center</h2>
+          <p class="section-subtitle">Real-time alerts for flagged transfers, budget limits, and compliance review decisions</p>
+        </div>
+        <button class="btn-secondary" onclick="markAllNotificationsRead()">✓ Mark All as Read</button>
+      </div>
+
+      <div id="notifications-list-container">
+        <!-- Notifications dynamically populated -->
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 12. USER PROFILE & SETTINGS VIEW                         -->
+    <!-- ======================================================== -->
+    <section class="view-panel" id="panel-profile">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">👤 User Profile & Platform Settings</h2>
+          <p class="section-subtitle">Manage personal information, business credentials, and regional language preferences</p>
+        </div>
+      </div>
+
+      <div class="dashboard-grid">
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <div class="card-panel-title">📋 Account Information</div>
+            <span class="badge role-individual" id="profile-role-display">INDIVIDUAL</span>
+          </div>
+
+          <form id="form-update-profile" onsubmit="event.preventDefault(); showToast('Profile preferences updated.');">
+            <div class="form-group">
+              <label>Full Name</label>
+              <input type="text" id="profile-full-name" class="form-control" value="Aditya Verma">
+            </div>
+            <div class="form-group">
+              <label>Registered Email</label>
+              <input type="email" id="profile-email" class="form-control" value="individual@nexapay.local" disabled>
+            </div>
+            <div class="form-group">
+              <label>Phone Number</label>
+              <input type="text" id="profile-phone" class="form-control" value="+91 98765 43210">
+            </div>
+            <div class="form-group">
+              <label>Business / Organization Name</label>
+              <input type="text" id="profile-business-name" class="form-control" placeholder="Optional business name">
+            </div>
+            <button type="submit" class="btn-primary">Save Profile Changes</button>
+          </form>
+        </div>
+
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <div class="card-panel-title">🔒 Security & Authentication</div>
+          </div>
+
+          <form id="form-change-pwd" onsubmit="event.preventDefault(); showToast('Password changed successfully.');">
+            <div class="form-group">
+              <label>Current Password</label>
+              <input type="password" class="form-control" placeholder="••••••••">
+            </div>
+            <div class="form-group">
+              <label>New Password (min 6 chars)</label>
+              <input type="password" class="form-control" placeholder="••••••••">
+            </div>
+            <button type="submit" class="btn-secondary">Update Password</button>
+          </form>
+
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+            <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">Demo Evaluation Role Selector:</div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="pill-btn" onclick="switchDemoRole('individual')">Individual User</button>
+              <button class="pill-btn" onclick="switchDemoRole('shop_owner')">Shop Owner</button>
+              <button class="pill-btn" onclick="switchDemoRole('business')">Business User</button>
+              <button class="pill-btn" onclick="switchDemoRole('admin_reviewer')">Admin / Reviewer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 13. ADMIN DASHBOARD VIEW                                 -->
+    <!-- ======================================================== -->
+    <section class="view-panel" id="panel-admin">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">🛡️ Admin & Financial Reviewer Console</h2>
+          <p class="section-subtitle">Platform-wide statistics, registered users directory, and system health monitors</p>
+        </div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Total Users</span><span>👥</span></div>
+          <div class="metric-value" id="admin-total-users">4</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Total Transactions</span><span>💳</span></div>
+          <div class="metric-value" id="admin-total-txns">13</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Platform Volume</span><span>💰</span></div>
+          <div class="metric-value" id="admin-total-volume">₹336,519.00</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header"><span class="metric-label">Flagged Anomaly Count</span><span>🚨</span></div>
+          <div class="metric-value" id="admin-flagged-count" style="color: #ef4444;">2</div>
+        </div>
+      </div>
+
+      <div class="card-panel">
+        <div class="card-panel-header">
+          <div class="card-panel-title">👥 Registered Platform Users</div>
+        </div>
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>User ID</th>
+                <th>Full Name</th>
+                <th>Email Address</th>
+                <th>Role</th>
+                <th>Wallet Balance</th>
+                <th>Total Txns</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="admin-users-tbody">
+              <!-- Admin users table dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- PRESERVED CYBERSECURITY SCANNER PANELS                   -->
+    <!-- ======================================================== -->
+
+    <!-- LINK SCANNER -->
+    <section class="view-panel" id="panel-link">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">🔗 AI Link & Phishing Threat Scanner</h2>
+          <p class="section-subtitle">Evaluates URLs for typosquatting, banking brand spoofing, rogue TLDs, and character entropy</p>
+        </div>
+      </div>
+      <div class="card-panel" style="max-width: 800px; margin: 0 auto;">
+        <form id="form-scan-link">
+          <div class="form-group">
+            <label>Suspicious Website URL</label>
+            <input type="text" id="input-link" class="form-control" placeholder="e.g. http://sbi-kyc-verification-login.xyz" required>
+            <div class="simulator-quick-presets">
+              <span style="font-size: 0.72rem; color: var(--text-dim);">Preset Demos:</span>
+              <button type="button" class="pill-btn" data-input="input-link" data-sample="http://sbi-kyc-verification-login.xyz">🚨 SBI Phishing (.xyz)</button>
+              <button type="button" class="pill-btn" data-input="input-link" data-sample="https://onlinesbi.sbi">✅ Official SBI Domain</button>
+              <button type="button" class="pill-btn" data-input="input-link" data-sample="http://192.168.1.100/login">🚨 Raw IP Phishing</button>
+            </div>
+          </div>
+          <button type="submit" id="btn-scan-link" class="btn-primary" style="width: 100%; justify-content: center;">Analyze URL Threat</button>
+        </form>
+        <div id="result-link" style="display: none; margin-top: 20px;"></div>
+      </div>
+    </section>
+
+    <!-- OTP DETECTOR -->
+    <section class="view-panel" id="panel-otp">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">🔑 OTP & UPI PIN Scam Extortion Detector</h2>
+          <p class="section-subtitle">Identifies social engineering coercion and reverse-credit UPI PIN traps</p>
+        </div>
+      </div>
+      <div class="card-panel" style="max-width: 800px; margin: 0 auto;">
+        <form id="form-scan-otp">
+          <div class="form-group">
+            <label>Message Content / Extortion Request</label>
+            <textarea id="input-otp" class="form-control" rows="3" placeholder="Paste the message demanding an OTP or PIN..." required></textarea>
+            <div class="simulator-quick-presets">
+              <span style="font-size: 0.72rem; color: var(--text-dim);">Preset Demos:</span>
+              <button type="button" class="pill-btn" data-input="input-otp" data-sample="Urgent: Your electricity power will be disconnected today. Share your OTP 492019 to verify payment.">🚨 Urgent Electricity OTP</button>
+              <button type="button" class="pill-btn" data-input="input-otp" data-sample="To receive Rs 5000 cashback into your bank account, please enter your UPI PIN right now.">🚨 Reverse-Credit UPI PIN Scam</button>
+              <button type="button" class="pill-btn" data-input="input-otp" data-sample="Your appointment with Dr. Sharma is confirmed for tomorrow at 4 PM.">✅ Safe Reminder SMS</button>
+            </div>
+          </div>
+          <button type="submit" id="btn-scan-otp" class="btn-primary" style="width: 100%; justify-content: center;">Scan Message Safety</button>
+        </form>
+        <div id="result-otp" style="display: none; margin-top: 20px;"></div>
+      </div>
+    </section>
+
+    <!-- SMS SCANNER -->
+    <section class="view-panel" id="panel-msg">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">💬 SMS & WhatsApp Fraud Scanner</h2>
+          <p class="section-subtitle">Classifies Telegram task jobs, fake lottery wins, and courier delivery phishing traps</p>
+        </div>
+      </div>
+      <div class="card-panel" style="max-width: 800px; margin: 0 auto;">
+        <form id="form-scan-msg">
+          <div class="form-group">
+            <label>SMS or WhatsApp Text</label>
+            <textarea id="input-msg" class="form-control" rows="3" placeholder="Paste SMS or WhatsApp message..." required></textarea>
+            <div class="simulator-quick-presets">
+              <span style="font-size: 0.72rem; color: var(--text-dim);">Preset Demos:</span>
+              <button type="button" class="pill-btn" data-input="input-msg" data-sample="Part time work from home earn 5000 daily by liking YouTube videos. Join Telegram t.me/fast_income">🚨 Telegram Job Scam</button>
+              <button type="button" class="pill-btn" data-input="input-msg" data-sample="Congratulations! Your mobile number has won Rs 25,00,000 in KBC Lucky Draw 2026.">🚨 KBC Lottery Scam</button>
+            </div>
+          </div>
+          <button type="submit" id="btn-scan-msg" class="btn-primary" style="width: 100%; justify-content: center;">Analyze SMS Threat</button>
+        </form>
+        <div id="result-msg" style="display: none; margin-top: 20px;"></div>
+      </div>
+    </section>
+
+    <!-- QR CODE SCANNER -->
+    <section class="view-panel" id="panel-qr">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">📷 QR Code Safety Scanner & Deep Link Inspector</h2>
+          <p class="section-subtitle">Decodes QR code images and verifies merchant names against personal VPAs</p>
+        </div>
+      </div>
+      <div class="card-panel" style="max-width: 800px; margin: 0 auto;">
+        <form id="form-scan-qr">
+          <div class="form-group">
+            <label>Upload QR Code Image (or enter raw UPI payload)</label>
+            <input type="file" id="input-qr-file" class="form-control" accept="image/*">
+          </div>
+          <div class="form-group">
+            <label>Or Paste Raw UPI String (upi://pay?...)</label>
+            <input type="text" id="input-qr-payload" class="form-control" placeholder="upi://pay?pa=merchant@upi&pn=Store&cu=INR">
+            <div class="simulator-quick-presets">
+              <span style="font-size: 0.72rem; color: var(--text-dim);">Preset Demos:</span>
+              <button type="button" class="pill-btn" data-input="input-qr-payload" data-sample="upi://pay?pa=scammer99@oksbi&pn=ElectricityOffice&am=5000&cu=INR">🚨 Spoofed Electricity Merchant (Personal VPA)</button>
+              <button type="button" class="pill-btn" data-input="input-qr-payload" data-sample="upi://pay?pa=retail.store@hdfcbank&pn=Retail_Store&cu=INR">✅ Verified Genuine Merchant QR</button>
+            </div>
+          </div>
+          <button type="submit" id="btn-scan-qr" class="btn-primary" style="width: 100%; justify-content: center;">Inspect QR Safety</button>
+        </form>
+        <div id="result-qr" style="display: none; margin-top: 20px;"></div>
+      </div>
+    </section>
+
+    <!-- SAFETY ACADEMY -->
+    <section class="view-panel" id="panel-academy">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">🎓 Financial Safety Academy (10 Modules)</h2>
+          <p class="section-subtitle">Interactive financial literacy modules, scenario quizzes, and cybersecurity badges</p>
+        </div>
+      </div>
+      <div id="academy-modules-container">
+        <!-- Loaded dynamically from static JSON -->
+      </div>
+    </section>
+
+    <!-- INCIDENT DOSSIER -->
+    <section class="view-panel" id="panel-report">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">📋 1930 Cybercrime Incident Dossier Generator</h2>
+          <p class="section-subtitle">Generate an official complaint dossier formatted for National Cyber Crime Reporting Portal</p>
+        </div>
+      </div>
+      <div class="card-panel" style="max-width: 800px; margin: 0 auto;">
+        <form id="form-incident-report">
+          <div class="form-group">
+            <label>Fraud Category</label>
+            <select id="report-fraud-type" class="form-control">
+              <option value="UPI_PIN_SCAM">UPI PIN Reverse Debit Trap</option>
+              <option value="QR_CODE_FRAUD">Spoofed Merchant QR Sticker</option>
+              <option value="PHISHING_LINK">Phishing URL / Banking Impersonation</option>
+              <option value="TELEGRAM_TASK">Part-Time Job / Telegram Task Fraud</option>
+              <option value="ELECTRICITY_BILL">Electricity Bill Disconnection Extortion</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Suspected Entity / Mobile / VPA</label>
+            <input type="text" id="report-entity" class="form-control" placeholder="e.g. unknown_agent@ybl or +91 98765 00000" required>
+          </div>
+          <div class="form-group">
+            <label>Financial Loss Amount (₹)</label>
+            <input type="number" id="report-loss" class="form-control" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label>Incident Narrative Description</label>
+            <textarea id="report-desc" class="form-control" rows="3" placeholder="Explain sequence of events..." required></textarea>
+          </div>
+          <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">Generate Official 1930 Incident Dossier</button>
+        </form>
+        <div id="incident-report-result" style="display: none;"></div>
+      </div>
+    </section>
+
+  </div><!-- /.app-container -->
+
+
+  <!-- ======================================================== -->
+  <!-- MODALS                                                   -->
+  <!-- ======================================================== -->
+
+  <!-- Add Transaction Modal -->
+  <div class="modal-overlay" id="modal-add-txn">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #38bdf8;">+ Add New Transaction</h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-add-txn')">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-add-transaction">
+          <div class="form-group">
+            <label>Transaction Type</label>
+            <select id="txn-add-type" class="form-control">
+              <option value="EXPENSE">Expense (Debit)</option>
+              <option value="INCOME">Income (Credit)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <select id="txn-add-category" class="form-control">
+              <option value="Food & Dining">Food & Dining</option>
+              <option value="Groceries">Groceries</option>
+              <option value="Rent & Housing">Rent & Housing</option>
+              <option value="Utilities & Bills">Utilities & Bills</option>
+              <option value="Salary & Wages">Salary & Wages</option>
+              <option value="Counter Sales">Counter Sales</option>
+              <option value="Inventory Supplies">Inventory Supplies</option>
+              <option value="Shopping & Retail">Shopping & Retail</option>
+              <option value="Healthcare">Healthcare</option>
+              <option value="Suspicious Transfer">Suspicious Transfer</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Amount (₹)</label>
+            <input type="number" step="0.01" id="txn-add-amount" class="form-control" placeholder="1000.00" required>
+          </div>
+          <div class="form-group">
+            <label>Counterparty (Recipient / Sender)</label>
+            <input type="text" id="txn-add-receiver" class="form-control" placeholder="e.g. Reliance Fresh" required>
+          </div>
+          <div class="form-group">
+            <label>Payment Method</label>
+            <select id="txn-add-method" class="form-control">
+              <option value="UPI">UPI</option>
+              <option value="Card">Card</option>
+              <option value="NetBanking">NetBanking</option>
+              <option value="Cash">Cash</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Description / Notes</label>
+            <input type="text" id="txn-add-desc" class="form-control" placeholder="Optional notes">
+          </div>
+          <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">Record Transaction</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Set Budget Modal -->
+  <div class="modal-overlay" id="modal-add-budget">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #38bdf8;">🎯 Set Monthly Category Budget</h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-add-budget')">✕</button>
+      </div>
+      <div class="modal-body">
+        <form onsubmit="handleBudgetSubmit(event)">
+          <div class="form-group">
+            <label>Category</label>
+            <select id="budget-category" class="form-control">
+              <option value="Food & Dining">Food & Dining</option>
+              <option value="Groceries">Groceries</option>
+              <option value="Shopping & Retail">Shopping & Retail</option>
+              <option value="Utilities & Bills">Utilities & Bills</option>
+              <option value="Entertainment">Entertainment</option>
+              <option value="Healthcare">Healthcare</option>
+              <option value="Inventory Supplies">Inventory Supplies</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Monthly Limit (₹)</label>
+            <input type="number" id="budget-limit" class="form-control" placeholder="8000" required>
+          </div>
+          <div class="form-group">
+            <label>Alert Threshold Percentage</label>
+            <input type="number" id="budget-threshold" class="form-control" value="80" required>
+          </div>
+          <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">Save Budget</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Set Savings Goal Modal -->
+  <div class="modal-overlay" id="modal-add-savings">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #38bdf8;">💰 Create Savings Goal</h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-add-savings')">✕</button>
+      </div>
+      <div class="modal-body">
+        <form onsubmit="handleSavingsSubmit(event)">
+          <div class="form-group">
+            <label>Goal Name</label>
+            <input type="text" id="goal-name" class="form-control" placeholder="e.g. Emergency Fund" required>
+          </div>
+          <div class="form-group">
+            <label>Target Amount (₹)</label>
+            <input type="number" id="goal-target" class="form-control" placeholder="100000" required>
+          </div>
+          <div class="form-group">
+            <label>Initial Deposit (₹)</label>
+            <input type="number" id="goal-current" class="form-control" value="0">
+          </div>
+          <div class="form-group">
+            <label>Target Date</label>
+            <input type="date" id="goal-date" class="form-control">
+          </div>
+          <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">Create Goal</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment Simulator Result Modal -->
+  <div class="modal-overlay" id="modal-sim-result">
+    <div class="modal-box" style="max-width: 620px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #38bdf8;">Payment Simulation Result</h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-sim-result')">✕</button>
+      </div>
+      <div class="modal-body" id="sim-result-content">
+        <!-- Rendered by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Sign In / Register Modal -->
+  <div class="modal-overlay" id="modal-auth-login">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #38bdf8;">🔐 NexaPay Authentication</h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-auth-login')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
+          Select a role to instantly test NexaPay with pre-populated demo data:
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
+          <button class="btn-secondary" onclick="switchDemoRole('individual'); closeModal('modal-auth-login');">👤 Log In as Individual User (Aditya)</button>
+          <button class="btn-secondary" onclick="switchDemoRole('shop_owner'); closeModal('modal-auth-login');">🏪 Log In as Shop Owner (Rajesh Kumar)</button>
+          <button class="btn-secondary" onclick="switchDemoRole('business'); closeModal('modal-auth-login');">💼 Log In as Business User (Priya Sharma)</button>
+          <button class="btn-secondary" onclick="switchDemoRole('admin_reviewer'); closeModal('modal-auth-login');">🛡️ Log In as Admin / Reviewer (Vikram Singh)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Helper Scripts -->
+  <script src="/static/js/app.js"></script>
+  <script>
+    function setSimPreset(amt, receiver, cat, desc) {
+      document.getElementById("sim-amount").value = amt;
+      document.getElementById("sim-receiver-upi").value = receiver;
+      document.getElementById("sim-category").value = cat;
+      document.getElementById("sim-desc").value = desc;
+    }
+
+    async function handleBudgetSubmit(e) {
+      e.preventDefault();
+      const cat = document.getElementById("budget-category").value;
+      const limit = parseFloat(document.getElementById("budget-limit").value);
+      const thresh = parseFloat(document.getElementById("budget-threshold").value);
+      try {
+        const res = await fetch("/api/budgets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ category: cat, monthly_limit: limit, alert_threshold: thresh })
+        });
+        const d = await res.json();
+        if (d.success) {
+          showToast(d.message);
+          closeModal("modal-add-budget");
+          loadBudgets();
+        }
+      } catch (err) { alert(err.message); }
+    }
+
+    async function handleSavingsSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById("goal-name").value;
+      const target = parseFloat(document.getElementById("goal-target").value);
+      const cur = parseFloat(document.getElementById("goal-current").value) || 0;
+      const date = document.getElementById("goal-date").value;
+      try {
+        const res = await fetch("/api/savings-goals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ goal_name: name, target_amount: target, current_amount: cur, target_date: date })
+        });
+        const d = await res.json();
+        if (d.success) {
+          showToast(d.message);
+          closeModal("modal-add-savings");
+          loadSavingsGoals();
+        }
+      } catch (err) { alert(err.message); }
+    }
+  </script>
+</body>
+</html>

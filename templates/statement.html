@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NexaPay Official Financial Account Statement</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 40px;
+      color: #1e293b;
+      background: #ffffff;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #0284c7;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    .logo {
+      font-size: 28px;
+      font-weight: 800;
+      color: #0369a1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .meta {
+      text-align: right;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .user-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .user-box div span {
+      display: block;
+      font-size: 11px;
+      color: #64748b;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .user-box div strong {
+      font-size: 15px;
+      color: #0f172a;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 30px;
+    }
+    .stat-card {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+    .stat-card .val {
+      font-size: 20px;
+      font-weight: 700;
+      color: #0284c7;
+      margin-top: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      font-size: 13px;
+    }
+    th {
+      background: #f1f5f9;
+      color: #334155;
+      text-align: left;
+      padding: 10px;
+      border-bottom: 2px solid #cbd5e1;
+    }
+    td {
+      padding: 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .badge-safe {
+      color: #166534;
+      background: #dcfce7;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .badge-flagged {
+      color: #991b1b;
+      background: #fee2e2;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .footer {
+      margin-top: 40px;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 15px;
+      font-size: 11px;
+      color: #94a3b8;
+      text-align: center;
+    }
+    @media print {
+      body { margin: 20px; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="logo">
+      <span>🛡️ NEXAPAY</span>
+    </div>
+    <div class="meta">
+      <strong>OFFICIAL FINANCIAL STATEMENT</strong><br>
+      Generated On: {{ generated_date }}<br>
+      Cyber Fraud Helpline: 1930
+    </div>
+  </div>
+
+  <div class="user-box">
+    <div>
+      <span>Account Holder</span>
+      <strong>{{ user.full_name }}</strong>
+    </div>
+    <div>
+      <span>Account Email / ID</span>
+      <strong>{{ user.email }} (UID #{{ user.id }})</strong>
+    </div>
+    <div>
+      <span>Profile Role</span>
+      <strong>{{ user.role | replace('_', ' ') | title }}</strong>
+    </div>
+    {% if user.business_name %}
+    <div>
+      <span>Registered Business</span>
+      <strong>{{ user.business_name }}</strong>
+    </div>
+    {% endif %}
+    <div>
+      <span>Current Available Balance</span>
+      <strong style="color: #0284c7;">₹{{ "{:,.2f}".format(user.wallet_balance) }}</strong>
+    </div>
+    <div>
+      <span>Security Shield Status</span>
+      <strong style="color: #16a34a;">ACTIVE (Zero-Trust)</strong>
+    </div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="stat-card">
+      <small>Total Recorded Inflows</small>
+      <div class="val" style="color: #16a34a;">₹{{ "{:,.2f}".format(analytics.total_income) }}</div>
+    </div>
+    <div class="stat-card">
+      <small>Total Recorded Outflows</small>
+      <div class="val" style="color: #dc2626;">₹{{ "{:,.2f}".format(analytics.total_expenses) }}</div>
+    </div>
+    <div class="stat-card">
+      <small>Net Cash Flow</small>
+      <div class="val">₹{{ "{:,.2f}".format(analytics.net_savings) }}</div>
+    </div>
+    <div class="stat-card">
+      <small>Flagged Anomaly Rate</small>
+      <div class="val">{{ analytics.fraud_rate }}%</div>
+    </div>
+  </div>
+
+  <h3 style="margin-bottom: 8px; color: #0f172a;">Recent Financial Transactions & Verification Trail</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Ref Number</th>
+        <th>Timestamp</th>
+        <th>Type</th>
+        <th>Category</th>
+        <th>Amount</th>
+        <th>Counterparty</th>
+        <th>Risk Score</th>
+        <th>Compliance Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tx in transactions %}
+      <tr>
+        <td><strong>{{ tx.transaction_ref }}</strong></td>
+        <td>{{ tx.created_at }}</td>
+        <td>{{ tx.txn_type }}</td>
+        <td>{{ tx.category }}</td>
+        <td><strong>₹{{ "{:,.2f}".format(tx.amount) }}</strong></td>
+        <td>{{ tx.receiver_info }}</td>
+        <td>{{ tx.risk_score }}/100</td>
+        <td>
+          {% if tx.review_status == 'Legitimate' %}
+          <span class="badge-safe">Verified</span>
+          {% else %}
+          <span class="badge-flagged">{{ tx.review_status }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <p>This electronic statement is generated by the NexaPay Autonomous FinTech Platform. For cyber fraud queries, call National Cybercrime Helpline 1930 or visit cybercrime.gov.in.</p>
+    <button class="no-print" onclick="window.print()" style="padding: 8px 18px; background: #0284c7; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; margin-top: 10px;">Print / Save as PDF</button>
+  </div>
+
+</body>
+</html>

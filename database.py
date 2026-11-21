@@ -222,6 +222,77 @@ def init_db():
     )
     """)
 
+    # 12. System Configuration Table (Configurable Fraud Risk Thresholds)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS system_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    )
+    """)
+
+    # 13. Fraud Reviewer Feedback Table (Model improvement feedback)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS fraud_feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        transaction_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        features_json TEXT,
+        rule_score REAL DEFAULT 0.0,
+        ml_anomaly_score REAL DEFAULT 0.0,
+        ml_fraud_prob REAL DEFAULT 0.0,
+        final_risk_score REAL DEFAULT 0.0,
+        reviewer_decision TEXT NOT NULL,
+        ground_truth_label INTEGER DEFAULT 0,
+        reviewer_notes TEXT,
+        reviewer_id INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (transaction_id) REFERENCES transactions (id),
+        FOREIGN KEY (reviewer_id) REFERENCES users (id)
+    )
+    """)
+
+    # Check migration for fraud_feedback
+    cursor.execute("PRAGMA table_info(fraud_feedback)")
+    feedback_cols = {row[1] for row in cursor.fetchall()}
+    if "ground_truth_label" not in feedback_cols:
+        cursor.execute("ALTER TABLE fraud_feedback ADD COLUMN ground_truth_label INTEGER DEFAULT 0")
+
+    # Ensure schema migrations for transactions table columns
+    cursor.execute("PRAGMA table_info(transactions)")
+    existing_cols = {row[1] for row in cursor.fetchall()}
+
+    columns_to_add = [
+        ("device_info", "TEXT DEFAULT ''"),
+        ("ip_address", "TEXT DEFAULT ''"),
+        ("location", "TEXT DEFAULT ''"),
+        ("features_json", "TEXT DEFAULT '{}'"),
+        ("rule_risk_score", "REAL DEFAULT 0.0"),
+        ("ml_anomaly_score", "REAL DEFAULT 0.0"),
+        ("ml_fraud_prob", "REAL DEFAULT 0.0"),
+        ("decision", "TEXT DEFAULT 'APPROVED'"),
+        ("reviewer_id", "INTEGER DEFAULT NULL"),
+        ("reviewed_at", "TIMESTAMP DEFAULT NULL")
+    ]
+
+    for col_name, col_def in columns_to_add:
+        if col_name not in existing_cols:
+            cursor.execute(f"ALTER TABLE transactions ADD COLUMN {col_name} {col_def}")
+
+    # Create Performance & Consistency Indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tx_user_created ON transactions(user_id, created_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tx_ref ON transactions(transaction_ref)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tx_review ON transactions(review_status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tx_risk_level ON transactions(risk_level)")
+
+    # Seed Default Config Thresholds if missing
+    default_configs = [
+        ("risk_threshold_low", "30.0"),
+        ("risk_threshold_high", "70.0"),
+        ("auto_block_high_risk", "0")
+    ]
+    for k, v in default_configs:
+        cursor.execute("INSERT OR IGNORE INTO system_config (key, value) VALUES (?, ?)", (k, v))
+
     conn.commit()
 
     # Seed Default Users & Demo Data if users table is empty
@@ -489,44 +560,68 @@ def create_transaction(
     risk_score: float = 5.0,
     risk_level: str = "SAFE",
     review_status: str = "Legitimate",
-    ai_reasons: Any = None
+    ai_reasons: Any = None,
+    device_info: str = "",
+    ip_address: str = "",
+    location: str = "",
+    features_json: Any = None,
+    rule_risk_score: float = 0.0,
+    ml_anomaly_score: float = 0.0,
+    ml_fraud_prob: float = 0.0,
+    decision: str = "APPROVED",
+    reviewer_id: Optional[int] = None,
+    reviewed_at: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Records a new transaction and adjusts user wallet balance."""
+    """Records a new transaction and adjusts user wallet balance if approved."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
     ref = f"TXN-{datetime.now().strftime('%Y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     reasons_str = json.dumps(ai_reasons) if ai_reasons and not isinstance(ai_reasons, str) else (ai_reasons or "[]")
+    features_str = json.dumps(features_json) if features_json and not isinstance(features_json, str) else (features_json or "{}")
 
     cursor.execute("""
     INSERT INTO transactions (
-        user_id, transaction_ref, txn_type, category, amount, payment_method, 
+        user_id, transaction_ref, created_at, txn_type, category, amount, payment_method, 
         sender_info, receiver_info, description, is_flagged, risk_score, 
-        risk_level, review_status, ai_reasons
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        risk_level, review_status, ai_reasons, device_info, ip_address, 
+        location, features_json, rule_risk_score, ml_anomaly_score, 
+        ml_fraud_prob, decision, reviewer_id, reviewed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        user_id, ref, txn_type.upper(), category, amount, payment_method,
+        user_id, ref, now_str, txn_type.upper(), category, amount, payment_method,
         sender_info, receiver_info, description, is_flagged, risk_score,
-        risk_level, review_status, reasons_str
+        risk_level, review_status, reasons_str, device_info, ip_address,
+        location, features_str, rule_risk_score, ml_anomaly_score,
+        ml_fraud_prob, decision, reviewer_id, reviewed_at
     ))
     new_txn_id = cursor.lastrowid
 
-    # Update wallet balance if transaction is legitimate or safe (do not deduct if pending high risk review)
-    if review_status != "Pending Review":
+    # Update wallet balance only if transaction is legitimate/approved (do not deduct if pending review, verification, or blocked)
+    if review_status == "Legitimate" and decision == "APPROVED":
         if txn_type.upper() == "EXPENSE":
             cursor.execute("UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ?", (amount, user_id))
         elif txn_type.upper() == "INCOME":
             cursor.execute("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?", (amount, user_id))
 
-    # Trigger Fraud Notification if flagged
-    if is_flagged or risk_level in ["HIGH_RISK", "CRITICAL"]:
+    # Trigger Fraud Notification if flagged or medium/high risk
+    if is_flagged or risk_level in ["MEDIUM", "HIGH", "HIGH_RISK", "CRITICAL"]:
+        notif_title = "High-Risk Payment Flagged" if risk_level in ["HIGH", "HIGH_RISK", "CRITICAL"] else "Suspicious Activity Warning"
         cursor.execute("""
         INSERT INTO notifications (user_id, title, message, notification_type, metadata)
-        VALUES (?, 'High-Risk Payment Flagged', ?, 'FRAUD_ALERT', ?)
+        VALUES (?, ?, ?, 'FRAUD_ALERT', ?)
         """, (
             user_id, 
-            f"Payment of ₹{amount:,.2f} to {receiver_info} triggered AI risk score {risk_score}/100 and has been sent for reviewer verification.",
-            json.dumps({"txn_id": new_txn_id, "txn_ref": ref, "risk_score": risk_score, "risk_level": risk_level})
+            notif_title,
+            f"Payment of ₹{amount:,.2f} to {receiver_info} triggered AI risk score {risk_score:.1f}/100 ({risk_level}). Status: {review_status}.",
+            json.dumps({
+                "txn_id": new_txn_id, 
+                "txn_ref": ref, 
+                "risk_score": risk_score, 
+                "risk_level": risk_level,
+                "reasons": reasons_str
+            })
         ))
 
     conn.commit()
@@ -537,6 +632,63 @@ def create_transaction(
     return row
 
 
+def check_duplicate_transaction(user_id: int, amount: float, receiver_info: str, window_seconds: int = 10) -> bool:
+    """
+    Prevents duplicate transaction submissions within a rapid time window.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    clean_receiver = receiver_info.strip().lower()
+
+    cursor.execute("""
+    SELECT id, created_at FROM transactions
+    WHERE user_id = ? AND ABS(amount - ?) < 0.01 AND LOWER(receiver_info) = ?
+    ORDER BY id DESC LIMIT 1
+    """, (user_id, amount, clean_receiver))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return False
+
+    created_at_val = row["created_at"]
+    from engines.feature_extractor import RealTimeFeatureExtractor
+    dt = RealTimeFeatureExtractor._parse_timestamp(created_at_val)
+    if dt:
+        sec_diff = (datetime.now() - dt).total_seconds()
+        if 0 <= sec_diff <= window_seconds:
+            return True
+    return False
+
+
+def get_system_thresholds() -> Dict[str, Any]:
+    """Retrieves dynamic, configurable fraud risk score thresholds."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT key, value FROM system_config WHERE key IN ('risk_threshold_low', 'risk_threshold_high', 'auto_block_high_risk')")
+    rows = dict(cursor.fetchall())
+    conn.close()
+
+    return {
+        "low_max": float(rows.get("risk_threshold_low", 29.0)),
+        "medium_max": float(rows.get("risk_threshold_high", 69.0)),
+        "high_min": float(rows.get("risk_threshold_high", 70.0)),
+        "auto_block_high_risk": rows.get("auto_block_high_risk", "0") in ("1", "true", "True")
+    }
+
+
+def update_system_thresholds(low_max: float, high_min: float, auto_block: bool = False) -> bool:
+    """Updates configurable fraud risk score thresholds."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO system_config (key, value) VALUES ('risk_threshold_low', ?)", (str(low_max),))
+    cursor.execute("INSERT OR REPLACE INTO system_config (key, value) VALUES ('risk_threshold_high', ?)", (str(high_min),))
+    cursor.execute("INSERT OR REPLACE INTO system_config (key, value) VALUES ('auto_block_high_risk', ?)", ("1" if auto_block else "0",))
+    conn.commit()
+    conn.close()
+    return True
+
+
 def get_user_transactions(
     user_id: int, 
     role: str = "individual",
@@ -544,19 +696,26 @@ def get_user_transactions(
     category: str = "", 
     txn_type: str = "", 
     review_status: str = "",
+    risk_level: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    user_filter: Optional[int] = None,
     limit: int = 50,
     offset: int = 0
 ) -> Tuple[List[Dict[str, Any]], int]:
-    """Fetches filtered transactions. Admin can view all users' transactions."""
+    """Fetches filtered transactions with multi-parameter filtering for user and admin."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
     query = "SELECT t.*, u.full_name as user_name FROM transactions t JOIN users u ON t.user_id = u.id WHERE 1=1"
-    params = []
+    params: List[Any] = []
 
     if role != "admin_reviewer":
         query += " AND t.user_id = ?"
         params.append(user_id)
+    elif user_filter:
+        query += " AND t.user_id = ?"
+        params.append(user_filter)
 
     if search:
         query += " AND (t.transaction_ref LIKE ? OR t.receiver_info LIKE ? OR t.description LIKE ?)"
@@ -574,6 +733,25 @@ def get_user_transactions(
     if review_status:
         query += " AND t.review_status = ?"
         params.append(review_status)
+
+    if risk_level:
+        if risk_level.upper() == "HIGH":
+            query += " AND (t.risk_level IN ('HIGH', 'HIGH_RISK', 'CRITICAL') OR t.risk_score >= 70)"
+        elif risk_level.upper() == "MEDIUM":
+            query += " AND (t.risk_level = 'MEDIUM' OR (t.risk_score >= 30 AND t.risk_score < 70))"
+        elif risk_level.upper() == "LOW":
+            query += " AND (t.risk_level IN ('SAFE', 'LOW') OR t.risk_score < 30)"
+        else:
+            query += " AND t.risk_level = ?"
+            params.append(risk_level)
+
+    if date_from:
+        query += " AND date(t.created_at) >= date(?)"
+        params.append(date_from)
+
+    if date_to:
+        query += " AND date(t.created_at) <= date(?)"
+        params.append(date_to)
 
     count_query = query.replace("SELECT t.*, u.full_name as user_name", "SELECT COUNT(*)")
     cursor.execute(count_query, params)
@@ -630,7 +808,18 @@ def submit_review_decision(
     reviewer_notes: str
 ) -> Tuple[bool, str]:
     """Processes a human reviewer's compliance decision on a flagged transaction."""
-    valid_statuses = ["Legitimate", "Suspicious", "Under Investigation", "Pending Review"]
+    status_aliases = {
+        "confirmed suspicious": "Suspicious",
+        "suspicious": "Suspicious",
+        "legitimate": "Legitimate",
+        "approved": "Legitimate",
+        "under investigation": "Under Investigation",
+        "pending review": "Pending Review",
+        "blocked": "Blocked",
+        "rejected": "Blocked"
+    }
+    new_status = status_aliases.get(new_status.strip().lower(), new_status)
+    valid_statuses = ["Legitimate", "Suspicious", "Under Investigation", "Pending Review", "Blocked"]
     if new_status not in valid_statuses:
         return False, "Invalid review status."
 
@@ -652,13 +841,26 @@ def submit_review_decision(
     rev = cursor.fetchone()
     reviewer_name = rev["full_name"] if rev else "Authorized Reviewer"
 
+    # Map decision status
+    decision_map = {
+        "Legitimate": "APPROVED",
+        "Suspicious": "BLOCKED",
+        "Blocked": "BLOCKED",
+        "Under Investigation": "UNDER_INVESTIGATION",
+        "Pending Review": "HELD_FOR_REVIEW"
+    }
+    new_decision = decision_map.get(new_status, "UNDER_INVESTIGATION")
+
     # Update transaction review state
-    unflag = 1 if new_status in ["Suspicious", "Under Investigation", "Pending Review"] else 0
+    unflag = 1 if new_status in ["Suspicious", "Under Investigation", "Pending Review", "Blocked"] else 0
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     cursor.execute("""
     UPDATE transactions 
-    SET review_status = ?, reviewer_notes = ?, is_flagged = ?
+    SET review_status = ?, reviewer_notes = ?, is_flagged = ?,
+        reviewer_id = ?, reviewed_at = ?, decision = ?
     WHERE id = ?
-    """, (new_status, reviewer_notes, unflag, transaction_id))
+    """, (new_status, reviewer_notes, unflag, reviewer_id, now_str, new_decision, transaction_id))
 
     # Log to audit trail
     cursor.execute("""
@@ -666,8 +868,23 @@ def submit_review_decision(
     VALUES (?, ?, ?, ?, ?, ?)
     """, (transaction_id, reviewer_id, reviewer_name, prev_status, new_status, reviewer_notes))
 
-    # If transitioned from Pending to Legitimate, debit/credit the wallet now
-    if prev_status == "Pending Review" and new_status == "Legitimate":
+    # Log to fraud feedback table for future model improvements
+    gt_label = 1 if new_status in ["Suspicious", "Blocked"] else 0
+    cursor.execute("""
+    INSERT INTO fraud_feedback (
+        transaction_id, user_id, features_json, rule_score, 
+        ml_anomaly_score, ml_fraud_prob, final_risk_score, 
+        reviewer_decision, ground_truth_label, reviewer_notes, reviewer_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        transaction_id, user_id, txn["features_json"] or "{}",
+        txn["rule_risk_score"] or 0.0, txn["ml_anomaly_score"] or 0.0,
+        txn["ml_fraud_prob"] or 0.0, txn["risk_score"] or 0.0,
+        new_status, gt_label, reviewer_notes, reviewer_id
+    ))
+
+    # If transitioned from Pending/Blocked to Legitimate, debit/credit wallet
+    if prev_status in ["Pending Review", "Pending Verification", "Blocked", "Suspicious"] and new_status == "Legitimate":
         if txn_type == "EXPENSE":
             cursor.execute("UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ?", (amount, user_id))
         elif txn_type == "INCOME":
@@ -679,12 +896,87 @@ def submit_review_decision(
     VALUES (?, 'Transaction Review Status Updated', ?, 'REVIEW_UPDATE')
     """, (
         user_id, 
-        f"Your transaction {txn['transaction_ref']} for ₹{amount:,.2f} has been marked as '{new_status}' by the compliance team. Notes: {reviewer_notes}"
+        f"Your transaction {txn['transaction_ref']} for ₹{amount:,.2f} has been marked as '{new_status}' by compliance officer {reviewer_name}. Notes: {reviewer_notes}"
     ))
 
     conn.commit()
     conn.close()
     return True, f"Transaction successfully updated to '{new_status}'."
+
+
+def get_fraud_analytics_breakdown(user_id: Optional[int] = None, role: str = "admin_reviewer") -> Dict[str, Any]:
+    """Calculates comprehensive fraud evaluation breakdown, risk distribution, and alert counters."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    thresholds = get_system_thresholds()
+    low_max = thresholds["low_max"]
+    high_min = thresholds["high_min"]
+
+    uid_filter = ""
+    params: List[Any] = []
+    if role != "admin_reviewer" and user_id is not None:
+        uid_filter = " WHERE user_id = ?"
+        params.append(user_id)
+
+    # 1. Total Transactions Evaluated
+    cursor.execute(f"SELECT COUNT(*) FROM transactions{uid_filter}", params)
+    total_tx = cursor.fetchone()[0]
+
+    # 2. Risk Tier Counts
+    # Low: risk_score <= low_max or risk_level in ('SAFE', 'LOW')
+    cursor.execute(f"""
+    SELECT COUNT(*) FROM transactions
+    {uid_filter + (' AND' if uid_filter else ' WHERE')}
+    (risk_score <= ? OR risk_level IN ('SAFE', 'LOW'))
+    """, params + [low_max])
+    low_count = cursor.fetchone()[0]
+
+    # Medium: risk_score > low_max AND risk_score < high_min
+    cursor.execute(f"""
+    SELECT COUNT(*) FROM transactions
+    {uid_filter + (' AND' if uid_filter else ' WHERE')}
+    (risk_score > ? AND risk_score < ? AND risk_level NOT IN ('SAFE', 'LOW', 'CRITICAL', 'HIGH_RISK'))
+    """, params + [low_max, high_min])
+    medium_count = cursor.fetchone()[0]
+
+    # High: risk_score >= high_min or risk_level in ('HIGH', 'HIGH_RISK', 'CRITICAL')
+    cursor.execute(f"""
+    SELECT COUNT(*) FROM transactions
+    {uid_filter + (' AND' if uid_filter else ' WHERE')}
+    (risk_score >= ? OR risk_level IN ('HIGH', 'HIGH_RISK', 'CRITICAL'))
+    """, params + [high_min])
+    high_count = cursor.fetchone()[0]
+
+    # Pending Reviews
+    cursor.execute(f"""
+    SELECT COUNT(*) FROM transactions
+    {uid_filter + (' AND' if uid_filter else ' WHERE')}
+    (is_flagged = 1 OR review_status IN ('Pending Review', 'Under Investigation', 'Pending Verification'))
+    """, params)
+    pending_count = cursor.fetchone()[0]
+
+    # Recent Alerts
+    cursor.execute(f"""
+    SELECT id, transaction_ref, user_id, amount, receiver_info, risk_score, 
+           risk_level, review_status, ai_reasons, created_at
+    FROM transactions
+    {uid_filter + (' AND' if uid_filter else ' WHERE')}
+    (risk_score > ? OR is_flagged = 1)
+    ORDER BY id DESC LIMIT 10
+    """, params + [low_max])
+    recent_alerts = [dict(r) for r in cursor.fetchall()]
+
+    conn.close()
+
+    return {
+        "total_evaluated": total_tx,
+        "low_risk_count": low_count,
+        "medium_risk_count": medium_count,
+        "high_risk_count": high_count,
+        "pending_reviews": pending_count,
+        "thresholds": thresholds,
+        "recent_alerts": recent_alerts
+    }
 
 
 def get_review_audit_logs(limit: int = 50) -> List[Dict[str, Any]]:

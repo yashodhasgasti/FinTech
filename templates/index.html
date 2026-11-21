@@ -13,6 +13,9 @@
 
   <div class="app-container">
 
+    <!-- Live Server-Sent Events (SSE) Fraud Alert Toast Container -->
+    <div id="live-alert-toast-container" class="live-alert-toast-container"></div>
+
     <!-- ======================================================== -->
     <!-- TOP NAVIGATION BAR                                       -->
     <!-- ======================================================== -->
@@ -26,6 +29,12 @@
       </div>
 
       <div class="nav-actions">
+        <!-- Live SSE Stream Status Indicator -->
+        <div class="helpline-pill" id="sse-status-pill" style="border-color: rgba(16, 185, 129, 0.4); display: flex; align-items: center;" title="Real-Time Server-Sent Events Connected">
+          <span class="live-pulse-dot online" id="sse-pulse-dot"></span>
+          <span id="sse-status-text" style="font-size: 0.78rem; font-weight: 600; color: #10b981;">Live Shield Active</span>
+        </div>
+
         <!-- 1930 Cyber Fraud Helpline Pill -->
         <div class="helpline-pill">
           <span>🚨 <strong data-i18n="helpline">Cyber Fraud Helpline: 1930</strong></span>
@@ -215,6 +224,78 @@
         </div>
       </div>
 
+      <!-- Real-Time AI Fraud & Security Telemetry Grid -->
+      <div class="metrics-grid" style="margin-top: -6px; margin-bottom: 24px;">
+        <div class="metric-card" style="border-left: 3px solid #38bdf8;">
+          <div class="metric-header">
+            <span class="metric-label">Evaluated Txns</span>
+            <span class="metric-icon">🔍</span>
+          </div>
+          <div class="metric-value" id="dash-evaluated-count" style="color: #38bdf8;">0</div>
+          <div class="metric-sub">Processed through ML Shield</div>
+        </div>
+
+        <div class="metric-card" style="border-left: 3px solid #10b981;">
+          <div class="metric-header">
+            <span class="metric-label">Low Risk (Safe)</span>
+            <span class="metric-icon">✅</span>
+          </div>
+          <div class="metric-value" id="dash-low-risk-count" style="color: #10b981;">0</div>
+          <div class="metric-sub">Score 0–29 (Instant Execution)</div>
+        </div>
+
+        <div class="metric-card" style="border-left: 3px solid #f59e0b;">
+          <div class="metric-header">
+            <span class="metric-label">Medium Risk</span>
+            <span class="metric-icon">⚠️</span>
+          </div>
+          <div class="metric-value" id="dash-medium-risk-count" style="color: #f59e0b;">0</div>
+          <div class="metric-sub">Score 30–69 (Step-Up 2FA)</div>
+        </div>
+
+        <div class="metric-card" style="border-left: 3px solid #ef4444;">
+          <div class="metric-header">
+            <span class="metric-label">High Risk (Quarantined)</span>
+            <span class="metric-icon">🚨</span>
+          </div>
+          <div class="metric-value" id="dash-high-risk-count" style="color: #ef4444;">0</div>
+          <div class="metric-sub">Score 70–100 (Payment Held)</div>
+        </div>
+
+        <div class="metric-card" style="border-left: 3px solid #a855f7;">
+          <div class="metric-header">
+            <span class="metric-label">Compliance Queue</span>
+            <span class="metric-icon">⚖️</span>
+          </div>
+          <div class="metric-value" id="dash-pending-count" style="color: #c084fc;">0</div>
+          <div class="metric-sub">Awaiting Human Review</div>
+        </div>
+      </div>
+
+      <!-- Live Risk Distribution & Streaming Telemetry Section -->
+      <div class="card-panel" style="margin-bottom: 24px;">
+        <div class="card-panel-header">
+          <div class="card-panel-title" style="display: flex; align-items: center; gap: 8px;">
+            <span class="live-pulse-dot online"></span>
+            <span>Real-Time Fraud Risk Distribution & Telemetry</span>
+          </div>
+          <span class="badge badge-risk-safe" id="dash-telemetry-badge">Live Stream Active</span>
+        </div>
+        <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 8px;">
+          Dynamic categorization across Isolation Forest anomaly isolation, Random Forest fraud probability, and velocity burst rules:
+        </div>
+        <div class="risk-distribution-bar">
+          <div class="risk-dist-segment-low" id="bar-dist-low" style="width: 70%;" title="Low Risk"></div>
+          <div class="risk-dist-segment-med" id="bar-dist-med" style="width: 20%;" title="Medium Risk"></div>
+          <div class="risk-dist-segment-high" id="bar-dist-high" style="width: 10%;" title="High Risk"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-dim); margin-top: 4px;">
+          <span>🟢 Low Risk: <strong id="pct-dist-low" style="color: #10b981;">0%</strong></span>
+          <span>🟡 Medium Risk: <strong id="pct-dist-med" style="color: #f59e0b;">0%</strong></span>
+          <span>🔴 High Risk: <strong id="pct-dist-high" style="color: #ef4444;">0%</strong></span>
+        </div>
+      </div>
+
       <!-- Main Dashboard 2-Column Split -->
       <div class="dashboard-grid">
         <!-- Left: Recent Transactions -->
@@ -228,8 +309,39 @@
           </div>
         </div>
 
-        <!-- Right: AI Safety Status & Quick Actions -->
+        <!-- Right: Live Activity Stream & Recent Alerts -->
         <div>
+          <!-- Live Real-Time Transaction Activity Feed -->
+          <div class="card-panel" style="margin-bottom: 20px;">
+            <div class="card-panel-header">
+              <div class="card-panel-title" style="display: flex; align-items: center; gap: 8px;">
+                <span class="live-pulse-dot online"></span>
+                <span>Live Transaction Activity Stream</span>
+              </div>
+              <span class="badge badge-risk-safe" style="font-size: 0.68rem; padding: 2px 6px;">SSE Broadcast</span>
+            </div>
+            <div id="dash-live-activity-stream" style="max-height: 220px; overflow-y: auto;">
+              <!-- Live events stream in via SSE -->
+              <div style="text-align: center; color: var(--text-dim); padding: 16px; font-size: 0.82rem;">
+                Listening for real-time transactions...
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Live Fraud Alerts -->
+          <div class="card-panel" style="margin-bottom: 20px;">
+            <div class="card-panel-header">
+              <div class="card-panel-title" style="display: flex; align-items: center; gap: 8px;">
+                <span>🚨 Recent Fraud Alerts</span>
+              </div>
+              <button class="btn-secondary" style="font-size: 0.75rem; padding: 3px 8px;" onclick="switchTab('panel-review')">Review Queue</button>
+            </div>
+            <div id="dash-recent-fraud-alerts" style="max-height: 220px; overflow-y: auto;">
+              <!-- Populated by app.js -->
+            </div>
+          </div>
+
+          <!-- AI Safety Status & Quick Actions -->
           <div class="card-panel">
             <div class="card-panel-header">
               <div class="card-panel-title">🛡️ AI Defense Shield</div>
@@ -302,6 +414,29 @@
             <option value="EXPENSE">Expense Only</option>
           </select>
 
+          <!-- Risk Level Filter -->
+          <select class="filter-select" id="txn-filter-risk" onchange="loadTransactions()">
+            <option value="">All Risk Tiers</option>
+            <option value="LOW">🟢 Low Risk (0–29)</option>
+            <option value="MEDIUM">🟡 Medium Risk (30–69)</option>
+            <option value="HIGH">🔴 High Risk (70–100)</option>
+          </select>
+
+          <!-- Review Status Filter -->
+          <select class="filter-select" id="txn-filter-status" onchange="loadTransactions()">
+            <option value="">All Review Statuses</option>
+            <option value="Legitimate">Legitimate</option>
+            <option value="Pending Review">Pending Review</option>
+            <option value="Pending Verification">Pending Verification</option>
+            <option value="Suspicious">Suspicious</option>
+            <option value="Under Investigation">Under Investigation</option>
+            <option value="Blocked">Blocked</option>
+          </select>
+
+          <!-- Date Range Filters -->
+          <input type="date" class="filter-select" id="txn-filter-date-from" onchange="loadTransactions()" title="Filter Start Date">
+          <input type="date" class="filter-select" id="txn-filter-date-to" onchange="loadTransactions()" title="Filter End Date">
+
           <button class="btn-secondary" onclick="loadTransactions()">Refresh</button>
         </div>
 
@@ -357,11 +492,11 @@
               <label>Recipient UPI ID / Virtual Address</label>
               <input type="text" id="sim-receiver-upi" class="form-control" placeholder="e.g. merchant_superstore@hdfcbank" required>
               <div class="simulator-quick-presets">
-                <span style="font-size: 0.72rem; color: var(--text-dim); display: flex; align-items: center;">Quick Test Presets:</span>
-                <button type="button" class="pill-btn" onclick="setSimPreset(450, 'groceries_kirana@upi', 'Groceries', 'Evening groceries')">Safe: ₹450 Kirana</button>
-                <button type="button" class="pill-btn" onclick="setSimPreset(18000, 'landlord_ramesh@icici', 'Rent & Housing', 'Apartment Rent')">Safe: ₹18,000 Rent</button>
-                <button type="button" class="pill-btn" style="border-color: #ef4444; color: #fca5a5;" onclick="setSimPreset(85000, 'crypto_lottery_agent@ybl', 'Suspicious Transfer', 'Urgent investment release')">🚨 Fraud: ₹85k Crypto</button>
-                <button type="button" class="pill-btn" style="border-color: #ef4444; color: #fca5a5;" onclick="setSimPreset(49999, 'instant_refund_bot@paytm', 'Suspicious Reversal', 'Duplicate payment reversal')">🚨 Fraud: ₹50k Refund</button>
+                <span style="font-size: 0.72rem; color: var(--text-dim); display: flex; align-items: center;">Quick Test Scenarios:</span>
+                <button type="button" class="pill-btn" style="border-color: #10b981; color: #6ee7b7;" onclick="setSimPreset(450, 'groceries_kirana@upi', 'Groceries', 'Evening groceries')">🟢 Low Risk: ₹450 Kirana</button>
+                <button type="button" class="pill-btn" style="border-color: #f59e0b; color: #fcd34d;" onclick="setSimPreset(55000, 'new_gadget_seller@upi', 'Shopping & Retail', 'Online electronics purchase')">🟡 Medium: ₹55k New Payee (2FA)</button>
+                <button type="button" class="pill-btn" style="border-color: #ef4444; color: #fca5a5;" onclick="setSimPreset(95000, 'crypto_lottery_agent@ybl', 'Suspicious Transfer', 'Urgent investment release')">🔴 High: ₹95k Crypto (Quarantined)</button>
+                <button type="button" class="pill-btn" style="border-color: #ef4444; color: #fca5a5;" onclick="setSimPreset(49999, 'instant_refund_bot@paytm', 'Suspicious Reversal', 'Duplicate payment reversal')">🚨 Reversal: ₹50k Refund</button>
               </div>
             </div>
 
@@ -526,7 +661,40 @@
           <h2 class="section-title">⚖️ Human Review Compliance Queue</h2>
           <p class="section-subtitle">Dedicated human-in-the-loop compliance inspection for flagged transactions and audit trail</p>
         </div>
-        <button class="btn-secondary" onclick="loadReviewQueue(); loadReviewAuditLogs();">🔄 Refresh Queue</button>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn-primary" onclick="openModal('modal-thresholds')">⚙️ Config Risk Thresholds</button>
+          <button class="btn-secondary" onclick="loadReviewQueue(); loadReviewAuditLogs();">🔄 Refresh Queue</button>
+        </div>
+      </div>
+
+      <!-- Configurable Risk Scoring Policy Card -->
+      <div class="card-panel" style="margin-bottom: 20px;">
+        <div class="card-panel-header">
+          <div class="card-panel-title">⚙️ Active Fraud Risk Policy & Decision Rules</div>
+          <span class="badge badge-risk-safe" id="threshold-policy-badge">Live Policy</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 8px;">
+          <div class="feature-pill" style="border-left: 3px solid #10b981;">
+            <div class="feature-pill-label">Low Risk Boundary</div>
+            <div class="feature-pill-val" style="color: #10b981;" id="policy-low-max">0 – 29 pts</div>
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 2px;">Action: Instant Approval & Settlement</div>
+          </div>
+          <div class="feature-pill" style="border-left: 3px solid #f59e0b;">
+            <div class="feature-pill-label">Medium Risk Boundary</div>
+            <div class="feature-pill-val" style="color: #f59e0b;" id="policy-med-range">30 – 69 pts</div>
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 2px;">Action: Step-Up 2FA Challenge</div>
+          </div>
+          <div class="feature-pill" style="border-left: 3px solid #ef4444;">
+            <div class="feature-pill-label">High Risk Boundary</div>
+            <div class="feature-pill-val" style="color: #ef4444;" id="policy-high-min">70 – 100 pts</div>
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 2px;">Action: Quarantine in Review Queue</div>
+          </div>
+          <div class="feature-pill" style="border-left: 3px solid #38bdf8;">
+            <div class="feature-pill-label">Ensemble Architecture</div>
+            <div class="feature-pill-val" style="font-size: 0.85rem; color: #38bdf8;">Rules (40%) + IsoForest (30%) + RF (30%)</div>
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 2px;">Baseline: Pure-NumPy Logistic Regression</div>
+          </div>
+        </div>
       </div>
 
       <div class="card-panel">
@@ -1201,6 +1369,76 @@
       </div>
       <div class="modal-body" id="sim-result-content">
         <!-- Rendered by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Step-Up Verification Challenge Modal (Medium-Risk Transactions) -->
+  <div class="modal-overlay" id="modal-verify-challenge">
+    <div class="modal-box" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; color: #f59e0b; display: flex; align-items: center; gap: 8px;">
+          <span>⚠️</span> Step-Up Security Verification Required
+        </h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-verify-challenge')">✕</button>
+      </div>
+      <div class="modal-body" id="challenge-content">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Transaction Feature & Explainable AI Inspection Modal -->
+  <div class="modal-overlay" id="modal-txn-details">
+    <div class="modal-box" style="max-width: 760px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; color: #38bdf8; display: flex; align-items: center; gap: 8px;">
+          <span>🔬</span> Transaction Fraud Risk & Feature Telemetry
+        </h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-txn-details')">✕</button>
+      </div>
+      <div class="modal-body" id="txn-details-content">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Configurable Risk Thresholds Modal (Admin / Compliance) -->
+  <div class="modal-overlay" id="modal-thresholds">
+    <div class="modal-box" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; color: #38bdf8;">⚙️ Configure Fraud Risk Thresholds</h3>
+        <button class="modal-close-btn" onclick="closeModal('modal-thresholds')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+          Define calibrated scoring boundaries for automated decision tiers (0–100 scale):
+        </p>
+        <form id="form-config-thresholds" onsubmit="handleThresholdsSubmit(event)">
+          <div class="form-group">
+            <label>Low Risk Maximum Threshold (0 to X)</label>
+            <input type="number" step="1" min="10" max="50" id="thresh-low-max" class="form-control" value="29" required>
+            <span style="font-size: 0.72rem; color: var(--text-dim);">Transactions scored below this are APPROVED immediately.</span>
+          </div>
+
+          <div class="form-group">
+            <label>High Risk Minimum Threshold (Y to 100)</label>
+            <input type="number" step="1" min="50" max="95" id="thresh-high-min" class="form-control" value="70" required>
+            <span style="font-size: 0.72rem; color: var(--text-dim);">Transactions scored at or above this are QUARANTINED in Review Queue.</span>
+          </div>
+
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" id="thresh-auto-block" style="width: 18px; height: 18px;">
+              <span>Enforce Auto-Block Policy for High-Risk Transactions (Reject instead of Hold)</span>
+            </label>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn-secondary" onclick="closeModal('modal-thresholds')">Cancel</button>
+            <button type="submit" class="btn-primary">Save Policy Changes</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

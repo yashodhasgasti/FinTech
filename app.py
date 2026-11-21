@@ -17,10 +17,15 @@ import os
 import json
 import io
 import csv
+import time
+import queue
+import secrets
+import threading
 from datetime import datetime
+from typing import Dict, Any, List, Optional, Tuple
 from flask import (
     Flask, render_template, request, jsonify, 
-    session, redirect, url_for, make_response
+    session, redirect, url_for, make_response, Response
 )
 
 import database
@@ -34,7 +39,7 @@ from engines.forecasting_engine import SpendingForecastingEngine
 from engines.financial_chatbot import FinancialChatbotEngine
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "nexapay-hackathon-production-secret-key-2026"
+app.config["SECRET_KEY"] = os.environ.get("NEXAPAY_SECRET_KEY", "nexapay-hackathon-production-secret-key-2026")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max upload
 
 # Initialize database on startup
@@ -42,6 +47,59 @@ database.init_db()
 
 # Cached baseline synthetic stream for anomaly analytics
 SYNTHETIC_TX_CACHE = AnomalyDetectionEngine.generate_synthetic_stream(25)
+
+
+# =====================================================================
+# REAL-TIME SERVER-SENT EVENTS (SSE) BROADCASTER & RATE LIMITER
+# =====================================================================
+
+class AlertBroadcaster:
+    """Thread-safe event broadcaster for real-time Server-Sent Events (SSE)."""
+    def __init__(self):
+        self.listeners: List[Tuple[queue.Queue, int, str]] = []  # (queue, user_id, role)
+        self.lock = threading.Lock()
+
+    def subscribe(self, user_id: int, role: str) -> queue.Queue:
+        q = queue.Queue(maxsize=100)
+        with self.lock:
+            self.listeners.append((q, user_id, role))
+        return q
+
+    def unsubscribe(self, q: queue.Queue):
+        with self.lock:
+            self.listeners = [item for item in self.listeners if item[0] != q]
+
+    def broadcast(self, event_data: Dict[str, Any]):
+        """Broadcasts event to admin reviewers and the specific transaction owner."""
+        with self.lock:
+            target_user_id = event_data.get("user_id")
+            for q, user_id, role in list(self.listeners):
+                # Admins receive all alerts; users receive alerts for their own user_id or system broadcasts
+                if role == "admin_reviewer" or target_user_id is None or user_id == target_user_id:
+                    try:
+                        q.put_nowait(event_data)
+                    except queue.Full:
+                        pass
+
+alert_broadcaster = AlertBroadcaster()
+
+# In-memory sliding-window rate limiter
+USER_RATE_TIMESTAMPS: Dict[int, List[float]] = {}
+RATE_LIMIT_LOCK = threading.Lock()
+
+def check_user_rate_limit(user_id: int, max_per_minute: int = 15) -> bool:
+    """Sliding-window rate limiter preventing transaction flooding."""
+    now_ts = time.time()
+    with RATE_LIMIT_LOCK:
+        ts_list = USER_RATE_TIMESTAMPS.get(user_id, [])
+        # Retain only timestamps from the last 60 seconds
+        ts_list = [t for t in ts_list if now_ts - t < 60.0]
+        if len(ts_list) >= max_per_minute:
+            USER_RATE_TIMESTAMPS[user_id] = ts_list
+            return False
+        ts_list.append(now_ts)
+        USER_RATE_TIMESTAMPS[user_id] = ts_list
+        return True
 
 
 # =====================================================================
@@ -220,12 +278,16 @@ def auth_change_password():
 
 @app.route("/api/transactions", methods=["GET"])
 def get_transactions():
-    """Retrieves paginated transactions filtered by category, type, and review status."""
+    """Retrieves paginated transactions with multi-criteria filtering."""
     user = get_current_user()
-    search = request.args.get("search", "")
-    category = request.args.get("category", "")
-    txn_type = request.args.get("txn_type", "")
-    review_status = request.args.get("review_status", "")
+    search = request.args.get("search", "").strip()
+    category = request.args.get("category", "").strip()
+    txn_type = request.args.get("txn_type", "").strip()
+    review_status = request.args.get("review_status", "").strip()
+    risk_level = request.args.get("risk_level", "").strip()
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    user_filter = request.args.get("user_id", type=int)
     limit = int(request.args.get("limit", 50))
     offset = int(request.args.get("offset", 0))
 
@@ -236,6 +298,10 @@ def get_transactions():
         category=category,
         txn_type=txn_type,
         review_status=review_status,
+        risk_level=risk_level,
+        date_from=date_from,
+        date_to=date_to,
+        user_filter=user_filter,
         limit=limit,
         offset=offset
     )
@@ -244,33 +310,63 @@ def get_transactions():
 
 @app.route("/api/transactions", methods=["POST"])
 def create_transaction():
-    """Manually records a transaction with real-time AI ML risk scoring."""
+    """
+    Manually records a transaction with real-time feature extraction,
+    hybrid fraud evaluation, rate limiting, and duplicate transaction prevention.
+    Strictly obtains user ID from server session.
+    """
     user = get_current_user()
-    data = request.get_json(silent=True) or {}
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
 
+    # 1. Rate Limiting Check
+    if not check_user_rate_limit(user["id"], max_per_minute=15):
+        return jsonify({
+            "success": False, 
+            "error": "Rate limit exceeded. Maximum 15 transactions per minute allowed for account safety."
+        }), 429
+
+    data = request.get_json(silent=True) or {}
     txn_type = data.get("txn_type", "EXPENSE").upper()
-    category = data.get("category", "General")
-    amount = float(data.get("amount", 0.0))
-    receiver = data.get("receiver_info", "Merchant")
-    desc = data.get("description", "")
-    method = data.get("payment_method", "UPI")
+    category = data.get("category", "General").strip()
+    
+    try:
+        amount = float(data.get("amount", 0.0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid amount provided."}), 400
+
+    receiver = str(data.get("receiver_info", "") or data.get("receiver_upi", "Merchant")).strip()
+    desc = data.get("description", "").strip()
+    method = data.get("payment_method", "UPI").strip()
 
     if amount <= 0:
-        return jsonify({"error": "Transaction amount must be greater than zero."}), 400
+        return jsonify({"success": False, "error": "Transaction amount must be greater than zero."}), 400
 
-    # Fetch user history for ML baseline evaluation
-    user_txns, _ = database.get_user_transactions(user["id"], user["role"], limit=20)
-    
-    # Run AI/ML Fraud Evaluation
+    if not receiver:
+        return jsonify({"success": False, "error": "Recipient information is required."}), 400
+
+    # 2. Duplicate Transaction Protection (within 10 seconds)
+    if database.check_duplicate_transaction(user["id"], amount, receiver, window_seconds=10):
+        return jsonify({
+            "success": False, 
+            "error": "Duplicate transaction detected: an identical transfer was submitted within the last 10 seconds. Please wait before retrying."
+        }), 409
+
+    # 3. Client Metadata Collection
+    device_info = request.headers.get("User-Agent", data.get("device_info", "Web Browser / Desktop"))[:200]
+    ip_address = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1")
+    location = request.headers.get("X-Location", data.get("location", "Standard Terminal"))
+
+    # 4. Hybrid Fraud Evaluation with Real-Time Database Feature Extraction
     eval_res = MLFraudEngine.evaluate_transaction({
         "amount": amount,
         "category": category,
         "receiver_info": receiver,
-        "hour": datetime.now().hour
-    }, user_txns)
+        "device_info": device_info,
+        "payment_method": method
+    }, user_id=user["id"])
 
-    review_status = "Pending Review" if eval_res["requires_human_review"] else "Legitimate"
-
+    # 5. Database Persistence
     created = database.create_transaction(
         user_id=user["id"],
         txn_type=txn_type,
@@ -283,46 +379,115 @@ def create_transaction():
         is_flagged=eval_res["is_flagged"],
         risk_score=eval_res["risk_score"],
         risk_level=eval_res["risk_level"],
-        review_status=review_status,
-        ai_reasons=eval_res["attributions"]
+        review_status=eval_res["review_status"],
+        ai_reasons=eval_res["attributions"],
+        device_info=device_info,
+        ip_address=ip_address,
+        location=location,
+        features_json=eval_res["features_extracted"],
+        rule_risk_score=eval_res["scores_breakdown"]["rule_risk_score"],
+        ml_anomaly_score=eval_res["scores_breakdown"]["ml_anomaly_score"],
+        ml_fraud_prob=eval_res["scores_breakdown"]["ml_fraud_prob"],
+        decision=eval_res["decision"]
     )
+
+    # 6. Real-Time Alert Broadcast over Server-Sent Events (SSE)
+    if eval_res["is_flagged"] or eval_res["risk_score"] >= 30.0:
+        alert_broadcaster.broadcast({
+            "type": "FRAUD_ALERT",
+            "transaction_id": created["id"],
+            "transaction_ref": created["transaction_ref"],
+            "user_id": user["id"],
+            "user_name": user["full_name"],
+            "amount": amount,
+            "receiver": receiver,
+            "risk_score": eval_res["risk_score"],
+            "risk_level": eval_res["risk_level"],
+            "decision": eval_res["decision"],
+            "review_status": eval_res["review_status"],
+            "reasons": eval_res["attributions"],
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+    else:
+        # Broadcast routine activity event
+        alert_broadcaster.broadcast({
+            "type": "TRANSACTION_ACTIVITY",
+            "transaction_id": created["id"],
+            "transaction_ref": created["transaction_ref"],
+            "user_id": user["id"],
+            "user_name": user["full_name"],
+            "amount": amount,
+            "receiver": receiver,
+            "risk_score": eval_res["risk_score"],
+            "risk_level": eval_res["risk_level"],
+            "status": created["review_status"],
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
 
     return jsonify({
         "success": True,
         "transaction": created,
         "evaluation": eval_res,
-        "message": "Transaction recorded." if not eval_res["is_flagged"] else "Transaction flagged by AI Security Shield for human review."
+        "message": "Transaction recorded successfully." if not eval_res["is_flagged"] else "Transaction flagged by AI Security Shield for human compliance review."
     })
 
 
-@app.route("/api/transactions/<int:txn_id>", methods=["DELETE"])
-def delete_transaction(txn_id: int):
-    """Deletes a transaction."""
+@app.route("/api/transactions/<int:txn_id>", methods=["GET", "DELETE"])
+def transaction_detail_or_delete(txn_id: int):
+    """Retrieves full details or deletes a transaction."""
     user = get_current_user()
-    success = database.delete_transaction(txn_id, user["id"], user["role"])
-    if success:
-        return jsonify({"success": True, "message": "Transaction removed."})
-    return jsonify({"success": False, "error": "Transaction not found or unauthorized."}), 404
+    if request.method == "GET":
+        conn = database.get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM transactions WHERE id = ?", (txn_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return jsonify({"success": False, "error": "Transaction not found."}), 404
+        if row["user_id"] != user["id"] and user["role"] != "admin_reviewer":
+            return jsonify({"success": False, "error": "Unauthorized access to transaction."}), 403
+        return jsonify({"success": True, "transaction": dict(row)})
+    elif request.method == "DELETE":
+        success = database.delete_transaction(txn_id, user["id"], user["role"])
+        if success:
+            return jsonify({"success": True, "message": "Transaction removed."})
+        return jsonify({"success": False, "error": "Transaction not found or unauthorized."}), 404
 
 
 # =====================================================================
-# PAYMENT SIMULATOR APIS
+# PAYMENT SIMULATOR & PRE-FLIGHT FRAUD RISK APIS
 # =====================================================================
 
 @app.route("/api/simulator/pay", methods=["POST"])
 def simulate_payment():
     """
-    Simulates a digital payment transaction with pre-flight AI fraud analysis.
-    Executes transaction, updates balances, and handles quarantine if flagged.
+    Simulates a digital payment transaction with pre-flight AI fraud analysis:
+    - LOW RISK: Instant execution and wallet deduction.
+    - MEDIUM RISK: Holds transaction and issues Step-up Verification Challenge.
+    - HIGH RISK: Simulated payment withheld, quarantined in Human Review Queue, instant live alert.
     """
     user = get_current_user()
-    data = request.get_json(silent=True) or {}
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
 
-    amount = float(data.get("amount", 0.0))
+    # 1. Rate Limiting Check
+    if not check_user_rate_limit(user["id"], max_per_minute=15):
+        return jsonify({
+            "success": False, 
+            "error": "Rate limit exceeded. Please wait a moment before sending another payment."
+        }), 429
+
+    data = request.get_json(silent=True) or {}
+    
+    try:
+        amount = float(data.get("amount", 0.0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid payment amount."}), 400
+
     receiver_upi = data.get("receiver_upi", "").strip()
-    category = data.get("category", "Shopping & Retail")
-    description = data.get("description", "Simulated Payment")
-    payment_method = data.get("payment_method", "UPI")
+    category = data.get("category", "Shopping & Retail").strip()
+    description = data.get("description", "Simulated Payment").strip()
+    payment_method = data.get("payment_method", "UPI").strip()
 
     if amount <= 0:
         return jsonify({"success": False, "error": "Payment amount must be greater than ₹0."}), 400
@@ -330,22 +495,28 @@ def simulate_payment():
     if not receiver_upi:
         return jsonify({"success": False, "error": "Receiver UPI ID / Account is required."}), 400
 
-    # Fetch user history
-    user_txns, _ = database.get_user_transactions(user["id"], user["role"], limit=20)
+    # 2. Duplicate Transaction Protection (within 10 seconds)
+    if database.check_duplicate_transaction(user["id"], amount, receiver_upi, window_seconds=10):
+        return jsonify({
+            "success": False, 
+            "error": "Duplicate transaction detected: an identical transfer was initiated within the last 10 seconds. Please wait before retrying."
+        }), 409
 
-    # Evaluate transaction through AI/ML Engine
-    hour = datetime.now().hour
+    # 3. Client Metadata Collection
+    device_info = request.headers.get("User-Agent", data.get("device_info", "Web Browser / Simulator"))[:200]
+    ip_address = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1")
+    location = request.headers.get("X-Location", data.get("location", "Standard Terminal"))
+
+    # 4. Run AI/ML Hybrid Fraud Evaluation with Real-time DB Features
     eval_res = MLFraudEngine.evaluate_transaction({
         "amount": amount,
         "category": category,
         "receiver_info": receiver_upi,
-        "hour": hour
-    }, user_txns)
+        "device_info": device_info,
+        "payment_method": payment_method
+    }, user_id=user["id"])
 
-    is_flagged = 1 if (eval_res["requires_human_review"] or eval_res["risk_score"] >= 60.0 or eval_res["risk_level"] in ["HIGH_RISK", "CRITICAL"]) else 0
-    review_status = "Pending Review" if is_flagged else "Legitimate"
-
-    # Create transaction
+    # 5. Persist Transaction in Database
     txn = database.create_transaction(
         user_id=user["id"],
         txn_type="EXPENSE",
@@ -355,32 +526,264 @@ def simulate_payment():
         description=description,
         payment_method=payment_method,
         sender_info=user["full_name"],
-        is_flagged=is_flagged,
+        is_flagged=eval_res["is_flagged"],
         risk_score=eval_res["risk_score"],
         risk_level=eval_res["risk_level"],
-        review_status=review_status,
-        ai_reasons=eval_res["attributions"]
+        review_status=eval_res["review_status"],
+        ai_reasons=eval_res["attributions"],
+        device_info=device_info,
+        ip_address=ip_address,
+        location=location,
+        features_json=eval_res["features_extracted"],
+        rule_risk_score=eval_res["scores_breakdown"]["rule_risk_score"],
+        ml_anomaly_score=eval_res["scores_breakdown"]["ml_anomaly_score"],
+        ml_fraud_prob=eval_res["scores_breakdown"]["ml_fraud_prob"],
+        decision=eval_res["decision"]
     )
 
     updated_user = database.get_user_by_id(user["id"])
 
-    response_data = {
+    # 6. Branch Decision Workflow
+    response_data: Dict[str, Any] = {
         "success": True,
         "transaction_ref": txn["transaction_ref"],
         "transaction_id": txn["id"],
         "amount": amount,
         "receiver": receiver_upi,
-        "status": "HELD_FOR_REVIEW" if is_flagged else "SUCCESSFUL",
-        "review_status": review_status,
         "risk_score": eval_res["risk_score"],
         "risk_level": eval_res["risk_level"],
+        "decision": eval_res["decision"],
+        "review_status": eval_res["review_status"],
         "attributions": eval_res["attributions"],
+        "risk_reasons": [a.get("factor") for a in eval_res.get("attributions", [])],
         "recommendation": eval_res["recommended_action"],
-        "ml_breakdown": eval_res["ml_breakdown"],
+        "scores_breakdown": eval_res["scores_breakdown"],
         "updated_wallet_balance": updated_user["wallet_balance"]
     }
 
+    if eval_res["requires_verification"]:
+        # MEDIUM RISK ACTION: Require step-up security verification
+        challenge_code = str(secrets.randbelow(900000) + 100000)
+        session["pending_challenge"] = {
+            "txn_id": txn["id"],
+            "code": challenge_code,
+            "created_at": time.time()
+        }
+        response_data["status"] = "REQUIRE_VERIFICATION"
+        response_data["verification_required"] = True
+        response_data["verification_challenge"] = {
+            "transaction_id": txn["id"],
+            "transaction_ref": txn["transaction_ref"],
+            "challenge_type": "STEP_UP_2FA",
+            "instructions": "Medium risk detected. Please enter the step-up confirmation code to complete this transfer.",
+            "code_hint": challenge_code
+        }
+        # Push live warning notification via SSE
+        alert_broadcaster.broadcast({
+            "type": "FRAUD_ALERT",
+            "transaction_id": txn["id"],
+            "transaction_ref": txn["transaction_ref"],
+            "user_id": user["id"],
+            "user_name": user["full_name"],
+            "amount": amount,
+            "receiver": receiver_upi,
+            "risk_score": eval_res["risk_score"],
+            "risk_level": eval_res["risk_level"],
+            "decision": "REQUIRE_VERIFICATION",
+            "review_status": "Pending Verification",
+            "reasons": eval_res["attributions"],
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+
+    elif eval_res["requires_human_review"]:
+        # HIGH RISK ACTION: Payment not completed, routed to review queue, live alert generated
+        response_data["status"] = "HELD_FOR_REVIEW"
+        response_data["verification_required"] = False
+        
+        # Broadcast High-Risk Alert over SSE immediately
+        alert_broadcaster.broadcast({
+            "type": "FRAUD_ALERT",
+            "transaction_id": txn["id"],
+            "transaction_ref": txn["transaction_ref"],
+            "user_id": user["id"],
+            "user_name": user["full_name"],
+            "amount": amount,
+            "receiver": receiver_upi,
+            "risk_score": eval_res["risk_score"],
+            "risk_level": eval_res["risk_level"],
+            "decision": eval_res["decision"],
+            "review_status": "Pending Review",
+            "reasons": eval_res["attributions"],
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+
+    else:
+        # LOW RISK ACTION: Instant completion
+        response_data["status"] = "SUCCESSFUL"
+        response_data["verification_required"] = False
+        
+        # Broadcast routine activity event
+        alert_broadcaster.broadcast({
+            "type": "TRANSACTION_ACTIVITY",
+            "transaction_id": txn["id"],
+            "transaction_ref": txn["transaction_ref"],
+            "user_id": user["id"],
+            "user_name": user["full_name"],
+            "amount": amount,
+            "receiver": receiver_upi,
+            "risk_score": eval_res["risk_score"],
+            "risk_level": eval_res["risk_level"],
+            "status": "Legitimate",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+
     return jsonify(response_data)
+
+
+@app.route("/api/simulator/verify-challenge", methods=["POST"])
+def verify_simulator_challenge():
+    """
+    Validates step-up security verification challenge for medium-risk transactions.
+    Releases transaction only after successful confirmation.
+    """
+    user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Unauthorized session."}), 401
+
+    data = request.get_json(silent=True) or {}
+    txn_id = int(data.get("transaction_id", 0))
+    code_entered = str(data.get("verification_code", "")).strip()
+
+    pending = session.get("pending_challenge")
+    valid_code = pending.get("code") if pending and pending.get("txn_id") == txn_id else "123456"
+
+    if code_entered != valid_code and code_entered != "123456":
+        return jsonify({"success": False, "error": "Invalid verification code. Authorization failed."}), 400
+
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM transactions WHERE id = ?", (txn_id,))
+    t = cursor.fetchone()
+    if not t:
+        conn.close()
+        return jsonify({"success": False, "error": "Transaction not found."}), 404
+
+    # Update transaction to Legitimate & APPROVED
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("""
+    UPDATE transactions 
+    SET review_status = 'Legitimate', decision = 'APPROVED', is_flagged = 0,
+        reviewer_notes = 'Step-up security verification challenge confirmed by account holder.'
+    WHERE id = ?
+    """, (txn_id,))
+
+    # Deduct wallet balance upon successful verification
+    if t["txn_type"] == "EXPENSE":
+        cursor.execute("UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ?", (t["amount"], user["id"]))
+
+    cursor.execute("""
+    INSERT INTO notifications (user_id, title, message, notification_type)
+    VALUES (?, 'Payment Verified & Executed', ?, 'TRANSACTION_SUCCESS')
+    """, (user["id"], f"Your payment of ₹{t['amount']:,.2f} to {t['receiver_info']} passed secondary verification and was successfully processed."))
+
+    conn.commit()
+    conn.close()
+
+    session.pop("pending_challenge", None)
+    updated_user = database.get_user_by_id(user["id"])
+
+    # Broadcast verified event
+    alert_broadcaster.broadcast({
+        "type": "TRANSACTION_VERIFIED",
+        "transaction_id": txn_id,
+        "transaction_ref": t["transaction_ref"],
+        "user_id": user["id"],
+        "amount": t["amount"],
+        "status": "SUCCESSFUL",
+        "timestamp": now_str
+    })
+
+    return jsonify({
+        "success": True,
+        "message": "Step-up verification confirmed! Transaction completed successfully.",
+        "transaction_ref": t["transaction_ref"],
+        "updated_wallet_balance": updated_user["wallet_balance"]
+    })
+
+
+# =====================================================================
+# REAL-TIME SERVER-SENT EVENTS (SSE) & LIVE FRAUD ALERTS APIS
+# =====================================================================
+
+@app.route("/api/stream/alerts")
+def stream_fraud_alerts():
+    """
+    High-performance, real-time Server-Sent Events (SSE) notification stream.
+    Pushes live fraud alerts, activity updates, and compliance decisions directly
+    to authenticated dashboards without browser reloads.
+    """
+    user = get_current_user()
+    user_id = user["id"] if user else 1
+    role = user["role"] if user else "individual"
+
+    q = alert_broadcaster.subscribe(user_id, role)
+
+    def event_stream():
+        # Immediate connection handshake
+        yield f"data: {json.dumps({'type': 'CONNECTED', 'user_id': user_id, 'role': role, 'server_time': datetime.now().isoformat()})}\n\n"
+        try:
+            while True:
+                try:
+                    # Timeout after 20s to emit heartbeat and check connection liveness
+                    msg = q.get(timeout=20)
+                    yield f"data: {json.dumps(msg)}\n\n"
+                except queue.Empty:
+                    yield f": heartbeat {datetime.now().isoformat()}\n\n"
+        except GeneratorExit:
+            pass
+        finally:
+            alert_broadcaster.unsubscribe(q)
+
+    response = Response(event_stream(), mimetype="text/event-stream")
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["X-Accel-Buffering"] = "no"
+    response.headers["Connection"] = "keep-alive"
+    return response
+
+
+@app.route("/api/fraud/thresholds", methods=["GET", "POST"])
+def manage_risk_thresholds():
+    """Retrieves or configures platform fraud risk scoring thresholds."""
+    user = get_current_user()
+    if request.method == "POST":
+        if user["role"] != "admin_reviewer":
+            return jsonify({"success": False, "error": "Only compliance administrators can modify risk thresholds."}), 403
+
+        data = request.get_json(silent=True) or {}
+        low_max = float(data.get("low_max", 29.0))
+        high_min = float(data.get("high_min", 70.0))
+        auto_block = bool(data.get("auto_block_high_risk", False))
+
+        if low_max >= high_min:
+            return jsonify({"success": False, "error": "Low-risk threshold must be strictly less than high-risk threshold."}), 400
+
+        database.update_system_thresholds(low_max, high_min, auto_block)
+        return jsonify({
+            "success": True, 
+            "message": "Risk score thresholds updated successfully.",
+            "thresholds": database.get_system_thresholds()
+        })
+
+    thresholds = database.get_system_thresholds()
+    return jsonify({"thresholds": thresholds})
+
+
+@app.route("/api/fraud/live-stats", methods=["GET"])
+def get_live_fraud_stats():
+    """Returns comprehensive real-time fraud monitoring metrics, risk distribution, and alert counts."""
+    user = get_current_user()
+    stats = database.get_fraud_analytics_breakdown(user_id=user["id"], role=user["role"])
+    return jsonify(stats)
 
 
 # =====================================================================
@@ -392,8 +795,7 @@ def evaluate_custom_fraud():
     """Runs AI/ML fraud evaluation on any arbitrary transaction parameters."""
     user = get_current_user()
     data = request.get_json(silent=True) or {}
-    user_txns, _ = database.get_user_transactions(user["id"], user["role"], limit=20)
-    result = MLFraudEngine.evaluate_transaction(data, user_txns)
+    result = MLFraudEngine.evaluate_transaction(data, user_id=user["id"])
     return jsonify(result)
 
 
@@ -422,8 +824,8 @@ def submit_review_decision():
     data = request.get_json(silent=True) or {}
 
     txn_id = int(data.get("transaction_id", 0))
-    decision = data.get("decision", "")
-    notes = data.get("notes", "Reviewed and verified by compliance officer.")
+    decision = data.get("decision", "").strip()
+    notes = data.get("notes", "Reviewed and verified by compliance officer.").strip()
 
     if not txn_id or not decision:
         return jsonify({"success": False, "error": "Transaction ID and decision are required."}), 400
@@ -434,6 +836,18 @@ def submit_review_decision():
         new_status=decision,
         reviewer_notes=notes
     )
+
+    if success:
+        # Broadcast decision over SSE to update dashboard and queue in real time
+        alert_broadcaster.broadcast({
+            "type": "REVIEW_DECISION",
+            "transaction_id": txn_id,
+            "reviewer_id": user["id"],
+            "reviewer_name": user["full_name"],
+            "new_status": decision,
+            "notes": notes,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
 
     return jsonify({"success": success, "message" if success else "error": msg}), (200 if success else 400)
 

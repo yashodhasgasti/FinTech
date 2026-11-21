@@ -105,6 +105,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupScanForms();
   loadAcademyModules();
   setupIncidentReportForm();
+  initAlertStream();
+  loadFraudLiveStats();
+  loadThresholds();
 });
 
 // =====================================================================
@@ -266,12 +269,20 @@ async function loadTransactions() {
   const searchInput = document.getElementById("txn-search");
   const catSelect = document.getElementById("txn-filter-category");
   const typeSelect = document.getElementById("txn-filter-type");
+  const riskSelect = document.getElementById("txn-filter-risk");
+  const statusSelect = document.getElementById("txn-filter-status");
+  const dateFrom = document.getElementById("txn-filter-date-from");
+  const dateTo = document.getElementById("txn-filter-date-to");
 
   const search = searchInput ? searchInput.value.trim() : "";
   const cat = catSelect ? catSelect.value : "";
   const type = typeSelect ? typeSelect.value : "";
+  const risk = riskSelect ? riskSelect.value : "";
+  const status = statusSelect ? statusSelect.value : "";
+  const dFrom = dateFrom ? dateFrom.value : "";
+  const dTo = dateTo ? dateTo.value : "";
 
-  const url = `/api/transactions?search=${encodeURIComponent(search)}&category=${encodeURIComponent(cat)}&txn_type=${encodeURIComponent(type)}&limit=50`;
+  const url = `/api/transactions?search=${encodeURIComponent(search)}&category=${encodeURIComponent(cat)}&txn_type=${encodeURIComponent(type)}&risk_level=${encodeURIComponent(risk)}&review_status=${encodeURIComponent(status)}&date_from=${encodeURIComponent(dFrom)}&date_to=${encodeURIComponent(dTo)}&limit=100`;
 
   try {
     const res = await fetch(url);
@@ -289,7 +300,7 @@ function renderTransactionsTable(transactions) {
   if (!tbody) return;
 
   if (transactions.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-dim); padding: 30px;">No transactions recorded matching criteria.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-dim); padding: 30px;">No transactions recorded matching criteria.</td></tr>`;
     return;
   }
 
@@ -310,8 +321,9 @@ function renderTransactionsTable(transactions) {
         <td>${escapeHtml(t.receiver_info || t.sender_info || "N/A")}</td>
         <td><span class="badge ${riskBadgeClass}">${t.risk_score}/100</span></td>
         <td><span class="badge ${statusBadgeClass}">${escapeHtml(t.review_status)}</span></td>
-        <td>
-          <button class="btn-danger" onclick="deleteTxn(${t.id})">Delete</button>
+        <td style="white-space: nowrap;">
+          <button class="btn-secondary" style="font-size: 0.72rem; padding: 3px 8px; margin-right: 4px;" onclick="openTxnDetailsModal(${t.id})">🔬 Inspect</button>
+          <button class="btn-danger" style="font-size: 0.72rem; padding: 3px 8px;" onclick="deleteTxn(${t.id})">Delete</button>
         </td>
       </tr>
     `;
@@ -449,10 +461,21 @@ function setupPaymentSimulator() {
       });
 
       const data = await res.json();
-      renderSimulatorResultModal(data);
+      if (!res.ok || data.success === false) {
+        showToast("⚠️ " + (data.error || "Payment execution declined."));
+        return;
+      }
+
+      if (data.status === "REQUIRE_VERIFICATION" || data.verification_required) {
+        openVerificationChallengeModal(data);
+      } else {
+        renderSimulatorResultModal(data);
+      }
+
       await loadCurrentUser();
       loadTransactions();
       loadReviewQueue();
+      loadFraudLiveStats();
     } catch (err) {
       alert("Simulation failed: " + err.message);
     } finally {
@@ -462,6 +485,79 @@ function setupPaymentSimulator() {
       }
     }
   });
+}
+
+function openVerificationChallengeModal(data) {
+  const content = document.getElementById("challenge-content");
+  if (!content) return;
+
+  const challenge = data.verification_challenge || {};
+  const codeHint = challenge.code_hint || "123456";
+
+  content.innerHTML = `
+    <div style="text-align: center; margin-bottom: 16px;">
+      <div style="font-size: 2.2rem; margin-bottom: 6px;">⚠️🔐</div>
+      <h4 style="color: #f59e0b; font-weight: 800; font-size: 1.15rem;">Medium Fraud Risk Warning (Score: ${data.risk_score}/100)</h4>
+      <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">
+        Transfer of <strong>₹${Number(data.amount).toLocaleString('en-IN', {minimumFractionDigits: 2})}</strong> to <strong>${escapeHtml(data.receiver)}</strong> flagged for behavioral variance. Secondary confirmation required.
+      </p>
+    </div>
+
+    <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 0.82rem;">
+      <strong style="color: #f59e0b; display: block; margin-bottom: 4px;">Flagged Indicators:</strong>
+      ${(data.attributions || []).map(a => `• <strong>${escapeHtml(a.factor)}:</strong> ${escapeHtml(a.detail)}`).join("<br>")}
+    </div>
+
+    <div style="background: rgba(0,0,0,0.3); border: 1px dashed var(--accent-cyan); border-radius: 8px; padding: 12px; text-align: center; margin-bottom: 16px;">
+      <span style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;">Step-Up Security Challenge Code:</span>
+      <div style="font-size: 1.6rem; font-weight: 800; letter-spacing: 4px; color: #38bdf8; margin: 4px 0;">${escapeHtml(codeHint)}</div>
+      <span style="font-size: 0.72rem; color: var(--text-muted);">(Issued to account holder for payment authorization)</span>
+    </div>
+
+    <form onsubmit="submitVerificationChallenge(event, ${data.transaction_id})">
+      <div class="form-group">
+        <label>Enter 6-Digit Confirmation PIN</label>
+        <input type="text" id="challenge-pin-input" class="form-control" placeholder="Enter confirmation code" value="${escapeHtml(codeHint)}" required style="text-align: center; font-size: 1.25rem; letter-spacing: 3px; font-weight: 700;">
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;">
+        <button type="button" class="btn-secondary" onclick="closeModal('modal-verify-challenge')">Cancel Transfer</button>
+        <button type="submit" class="btn-primary" id="btn-submit-challenge">Confirm & Authorize</button>
+      </div>
+    </form>
+  `;
+
+  openModal("modal-verify-challenge");
+}
+
+async function submitVerificationChallenge(e, txnId) {
+  e.preventDefault();
+  const pinInput = document.getElementById("challenge-pin-input");
+  const pin = pinInput ? pinInput.value.trim() : "";
+  const btn = document.getElementById("btn-submit-challenge");
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch("/api/simulator/verify-challenge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transaction_id: txnId, verification_code: pin })
+    });
+    const d = await res.json();
+    if (d.success) {
+      showToast("✅ " + d.message);
+      closeModal("modal-verify-challenge");
+      await loadCurrentUser();
+      loadTransactions();
+      loadReviewQueue();
+      loadFraudLiveStats();
+    } else {
+      alert("Verification failed: " + (d.error || "Invalid confirmation code"));
+    }
+  } catch (err) {
+    alert("Verification request failed: " + err.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function renderSimulatorResultModal(result) {
@@ -593,6 +689,14 @@ function renderReviewQueue(queue) {
           <div><span style="color: var(--text-dim)">Flag Reason:</span><br><strong>${escapeHtml(t.description || "High Anomaly Score")}</strong></div>
         </div>
 
+        <div style="display: flex; gap: 14px; font-size: 0.74rem; color: var(--text-dim); background: rgba(0,0,0,0.15); padding: 6px 10px; border-radius: 4px; margin-bottom: 8px;">
+          <span>Rules: <strong style="color: #38bdf8;">${t.rule_risk_score !== undefined ? t.rule_risk_score : 'N/A'}</strong></span>
+          <span>IsoForest: <strong style="color: #c084fc;">${t.ml_anomaly_score !== undefined ? t.ml_anomaly_score + '%' : 'N/A'}</strong></span>
+          <span>RandomForest: <strong style="color: #fbbf24;">${t.ml_fraud_prob !== undefined ? t.ml_fraud_prob + '%' : 'N/A'}</strong></span>
+          <span>Decision: <strong style="color: #f87171;">${escapeHtml(t.decision || t.review_status)}</strong></span>
+          ${t.device_info ? `<span>Device: <strong style="color: var(--text-muted);">${escapeHtml(t.device_info.slice(0, 20))}...</strong></span>` : ''}
+        </div>
+
         ${aiFactors.length > 0 ? `
           <div style="background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: var(--radius-sm); margin-bottom: 12px; font-size: 0.8rem;">
             <strong style="color: var(--accent-cyan); display: block; margin-bottom: 4px;">Explainable AI Analysis:</strong>
@@ -601,12 +705,14 @@ function renderReviewQueue(queue) {
         ` : ''}
 
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-          <input type="text" id="reviewer-note-${t.id}" placeholder="Enter compliance officer investigation notes..." class="form-control" style="flex: 1; min-width: 260px; padding: 7px 12px; font-size: 0.82rem;" value="${escapeHtml(t.reviewer_notes || '')}">
+          <input type="text" id="reviewer-note-${t.id}" placeholder="Enter compliance officer investigation notes..." class="form-control" style="flex: 1; min-width: 240px; padding: 7px 12px; font-size: 0.82rem;" value="${escapeHtml(t.reviewer_notes || '')}">
           
-          <div class="review-actions">
+          <div class="review-actions" style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button class="btn-secondary" style="font-size: 0.78rem; padding: 6px 10px;" onclick="openTxnDetailsModal(${t.id})">🔬 Inspect Features</button>
             <button class="btn-success" onclick="submitDecision(${t.id}, 'Legitimate')">Approve as Legitimate</button>
             <button class="btn-warning" onclick="submitDecision(${t.id}, 'Under Investigation')">Mark Investigation</button>
             <button class="btn-danger" onclick="submitDecision(${t.id}, 'Suspicious')">Confirm Suspicious</button>
+            <button class="btn-danger" style="background: #991b1b;" onclick="submitDecision(${t.id}, 'Blocked')">🚫 Block</button>
           </div>
         </div>
       </div>
@@ -669,6 +775,479 @@ async function loadReviewAuditLogs() {
     `).join("");
   } catch (err) {
     console.error("Error loading audit logs:", err);
+  }
+}
+
+// =====================================================================
+// REAL-TIME FEATURE INSPECTION & EXPLAINABLE AI TELEMETRY MODAL
+// =====================================================================
+
+function openTxnDetailsModal(txnId) {
+  let txn = state.transactions.find(t => t.id === txnId) || state.reviewQueue.find(t => t.id === txnId);
+  if (!txn) {
+    fetch(`/api/transactions?search=&limit=100`)
+      .then(res => res.json())
+      .then(data => {
+        txn = (data.transactions || []).find(t => t.id === txnId);
+        if (txn) renderTxnDetailsModal(txn);
+        else alert("Transaction details not found.");
+      })
+      .catch(e => alert(e.message));
+    return;
+  }
+  renderTxnDetailsModal(txn);
+}
+
+function renderTxnDetailsModal(txn) {
+  const content = document.getElementById("txn-details-content");
+  if (!content) return;
+
+  let feats = {};
+  try {
+    feats = typeof txn.features_json === "string" ? JSON.parse(txn.features_json || "{}") : (txn.features_json || {});
+  } catch (e) {
+    feats = {};
+  }
+
+  let attributions = [];
+  try {
+    attributions = typeof txn.ai_reasons === "string" ? JSON.parse(txn.ai_reasons || "[]") : (txn.ai_reasons || []);
+  } catch (e) {
+    attributions = [];
+  }
+
+  const riskBadgeClass = getRiskBadgeClass(txn.risk_level);
+  const statusBadgeClass = getStatusBadgeClass(txn.review_status);
+
+  content.innerHTML = `
+    <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 1.1rem; font-weight: 800; color: #38bdf8;">${escapeHtml(txn.transaction_ref)}</span>
+        <div>
+          <span class="badge ${riskBadgeClass}">Risk: ${txn.risk_score} / 100 (${txn.risk_level})</span>
+          <span class="badge ${statusBadgeClass}" style="margin-left: 6px;">${escapeHtml(txn.review_status)}</span>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; font-size: 0.82rem; color: var(--text-muted);">
+        <div><strong>Amount:</strong> ₹${Number(txn.amount).toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
+        <div><strong>Payee:</strong> ${escapeHtml(txn.receiver_info || 'N/A')}</div>
+        <div><strong>Category:</strong> ${escapeHtml(txn.category)}</div>
+        <div><strong>Payment Method:</strong> ${escapeHtml(txn.payment_method)}</div>
+        <div><strong>Initiated:</strong> ${escapeHtml(txn.created_at)}</div>
+        <div><strong>Decision:</strong> <span style="color: #38bdf8;">${escapeHtml(txn.decision || 'N/A')}</span></div>
+        <div><strong>Device / UA:</strong> ${escapeHtml((txn.device_info || 'Web Client').slice(0, 30))}</div>
+        <div><strong>Location:</strong> ${escapeHtml(txn.location || 'Terminal')}</div>
+      </div>
+    </div>
+
+    <h4 style="font-size: 0.9rem; color: var(--text-main); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+      <span>🧠</span> Multi-Model ML & Anomaly Scoring Breakdown:
+    </h4>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 16px;">
+      <div class="feature-pill" style="border-left: 3px solid #38bdf8;">
+        <div class="feature-pill-label">Deterministic Rules</div>
+        <div class="feature-pill-val" style="color: #38bdf8;">${txn.rule_risk_score !== undefined ? txn.rule_risk_score : (feats.rule_score || 0)} pts</div>
+        <div style="font-size: 0.7rem; color: var(--text-dim);">Weight: 40%</div>
+      </div>
+      <div class="feature-pill" style="border-left: 3px solid #c084fc;">
+        <div class="feature-pill-label">Isolation Forest Anomaly</div>
+        <div class="feature-pill-val" style="color: #c084fc;">${txn.ml_anomaly_score !== undefined ? txn.ml_anomaly_score + '%' : 'N/A'}</div>
+        <div style="font-size: 0.7rem; color: var(--text-dim);">Weight: 30% (Pure NumPy)</div>
+      </div>
+      <div class="feature-pill" style="border-left: 3px solid #fbbf24;">
+        <div class="feature-pill-label">Random Forest Fraud Prob</div>
+        <div class="feature-pill-val" style="color: #fbbf24;">${txn.ml_fraud_prob !== undefined ? txn.ml_fraud_prob + '%' : 'N/A'}</div>
+        <div style="font-size: 0.7rem; color: var(--text-dim);">Weight: 30% (Ensemble)</div>
+      </div>
+      <div class="feature-pill" style="border-left: 3px solid #f87171;">
+        <div class="feature-pill-label">Combined Risk Score</div>
+        <div class="feature-pill-val" style="color: #f87171;">${txn.risk_score} / 100</div>
+        <div style="font-size: 0.7rem; color: var(--text-dim);">Calibrated Final Index</div>
+      </div>
+    </div>
+
+    <h4 style="font-size: 0.9rem; color: var(--text-main); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+      <span>📊</span> Real-Time Extracted Transaction Features (Database Ground Truth):
+    </h4>
+    <div class="feature-inspection-grid">
+      <div class="feature-pill">
+        <div class="feature-pill-label">Velocity (1 Minute)</div>
+        <div class="feature-pill-val">${feats.tx_count_1m !== undefined ? feats.tx_count_1m : 0} txns</div>
+      </div>
+      <div class="feature-pill">
+        <div class="feature-pill-label">Velocity (5 Minutes)</div>
+        <div class="feature-pill-val">${feats.tx_count_5m !== undefined ? feats.tx_count_5m : 0} txns</div>
+      </div>
+      <div class="feature-pill">
+        <div class="feature-pill-label">Velocity (10 Minutes)</div>
+        <div class="feature-pill-val">${feats.tx_count_10m !== undefined ? feats.tx_count_10m : 0} txns</div>
+      </div>
+      <div class="feature-pill">
+        <div class="feature-pill-label">Velocity (1 Hour)</div>
+        <div class="feature-pill-val">${feats.tx_count_1h !== undefined ? feats.tx_count_1h : 0} txns</div>
+      </div>
+      <div class="feature-pill">
+        <div class="feature-pill-label">User Avg Spend Baseline</div>
+        <div class="feature-pill-val">₹${feats.avg_amount !== undefined ? Number(feats.avg_amount).toLocaleString('en-IN') : 'N/A'}</div>
+      </div>
+      <div class="feature-pill">
+        <div class="feature-pill-label">Spending Deviation (Z-Score)</div>
+        <div class="feature-pill-val">${feats.z_score !== undefined ? (feats.z_score > 0 ? '+' : '') + feats.z_score + 'σ' : '0.0σ'}</div>
+      </div>
+      <div class="feature-pill">
+        <div class="feature-pill-label">Time Since Prior Txn</div>
+        <div class="feature-pill-val">${feats.seconds_since_last_txn !== null && feats.seconds_since_last_txn !== undefined ? feats.seconds_since_last_txn + 's' : 'N/A (First Txn)'}</div>
+      </div>
+      <div class="feature-pill">
+        <div class="feature-pill-label">First-Time Payee</div>
+        <div class="feature-pill-val" style="color: ${feats.is_new_recipient ? '#f59e0b' : '#10b981'}">${feats.is_new_recipient ? 'Yes (New)' : 'No (Known)'}</div>
+      </div>
+      <div class="feature-pill">
+        <div class="feature-pill-label">Frequently Used Payee</div>
+        <div class="feature-pill-val" style="color: ${feats.is_frequent_recipient ? '#10b981' : 'var(--text-main)'}">${feats.is_frequent_recipient ? 'Yes (Trusted)' : 'No'}</div>
+      </div>
+      <div class="feature-pill">
+        <div class="feature-pill-label">Odd Hours (1 AM - 5 AM)</div>
+        <div class="feature-pill-val" style="color: ${feats.is_odd_hour ? '#ef4444' : '#10b981'}">${feats.is_odd_hour ? 'Flagged (Odd Hr)' : 'Normal (Daytime)'}</div>
+      </div>
+      <div class="feature-pill">
+        <div class="feature-pill-label">Rapid Repeat Pattern</div>
+        <div class="feature-pill-val" style="color: ${feats.rapid_repeat_detected ? '#ef4444' : '#10b981'}">${feats.rapid_repeat_detected ? '🚨 DETECTED' : 'None'}</div>
+      </div>
+      <div class="feature-pill">
+        <div class="feature-pill-label">Unusual Device / Session</div>
+        <div class="feature-pill-val" style="color: ${feats.unusual_device ? '#f59e0b' : '#10b981'}">${feats.unusual_device ? 'Flagged (Unseen)' : 'Recognized'}</div>
+      </div>
+    </div>
+
+    <h4 style="font-size: 0.9rem; color: var(--text-main); margin: 16px 0 8px; display: flex; align-items: center; gap: 6px;">
+      <span>🔍</span> Explainable AI Attributions:
+    </h4>
+    <div>
+      ${attributions.length > 0 ? attributions.map(a => `
+        <div class="attribution-item">
+          <div class="attribution-header">
+            <span><strong>${escapeHtml(a.factor || a.feature || 'Risk Factor')}</strong> (${escapeHtml(a.category || 'General')})</span>
+            <span style="color: var(--color-danger)">+${a.impact || 0} pts</span>
+          </div>
+          <div class="attribution-bar-bg">
+            <div class="attribution-bar-fill" style="width: ${Math.min(100, (a.impact || 5) * 2)}%"></div>
+          </div>
+          <div class="attribution-desc">${escapeHtml(a.detail || a.desc || '')}</div>
+        </div>
+      `).join("") : '<div style="color: var(--text-dim); font-size: 0.85rem;">Conforms to standard behavioral baseline. Zero threats triggered.</div>'}
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; margin-top: 18px;">
+      <button class="btn-secondary" onclick="closeModal('modal-txn-details')">Close Inspection</button>
+    </div>
+  `;
+
+  openModal("modal-txn-details");
+}
+
+// =====================================================================
+// REAL-TIME SERVER-SENT EVENTS (SSE) STREAM & ALERT DISPATCHER
+// =====================================================================
+
+function initAlertStream() {
+  if (state.eventSource) {
+    try { state.eventSource.close(); } catch (e) {}
+  }
+
+  try {
+    state.eventSource = new EventSource("/api/stream/alerts");
+
+    state.eventSource.onopen = () => {
+      const dot = document.getElementById("sse-pulse-dot");
+      const text = document.getElementById("sse-status-text");
+      if (dot) dot.className = "live-pulse-dot online";
+      if (text) {
+        text.textContent = "Live Shield Active";
+        text.style.color = "#10b981";
+      }
+    };
+
+    state.eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleIncomingSSEEvent(data);
+      } catch (err) {
+        console.error("SSE parse error:", err);
+      }
+    };
+
+    state.eventSource.onerror = () => {
+      const dot = document.getElementById("sse-pulse-dot");
+      const text = document.getElementById("sse-status-text");
+      if (dot) dot.className = "live-pulse-dot";
+      if (text) {
+        text.textContent = "Reconnecting...";
+        text.style.color = "#f59e0b";
+      }
+    };
+  } catch (err) {
+    console.error("Failed to initialize SSE EventSource:", err);
+  }
+}
+
+function handleIncomingSSEEvent(data) {
+  if (data.type === "CONNECTED") {
+    return;
+  }
+
+  if (data.type === "FRAUD_ALERT") {
+    // 1. Show live animated toast alert banner
+    showLiveAlertToast(data);
+
+    // 2. Increment notification bell counter
+    state.unreadCount = (state.unreadCount || 0) + 1;
+    const notifBadge = document.getElementById("nav-notif-count");
+    if (notifBadge) {
+      notifBadge.style.display = "flex";
+      notifBadge.textContent = state.unreadCount;
+    }
+
+    // 3. Update dashboard counters and review queue
+    loadFraudLiveStats();
+    loadReviewQueue();
+    loadTransactions();
+
+    // 4. Append to Live Activity Stream
+    appendLiveActivity({
+      type: "ALERT",
+      amount: data.amount,
+      receiver: data.receiver,
+      risk_score: data.risk_score,
+      risk_level: data.risk_level,
+      status: data.review_status || "Pending Review",
+      timestamp: data.timestamp || "Just now"
+    });
+  } else if (data.type === "TRANSACTION_ACTIVITY" || data.type === "TRANSACTION_VERIFIED") {
+    appendLiveActivity({
+      type: "TXN",
+      amount: data.amount,
+      receiver: data.receiver,
+      risk_score: data.risk_score || 10,
+      risk_level: data.risk_level || "SAFE",
+      status: data.status || "SUCCESSFUL",
+      timestamp: data.timestamp || "Just now"
+    });
+    loadFraudLiveStats();
+    loadTransactions();
+  } else if (data.type === "REVIEW_DECISION") {
+    showToast(`⚖️ Transaction review updated to '${data.new_status}' by ${data.reviewer_name || 'Compliance'}`);
+    loadReviewQueue();
+    loadReviewAuditLogs();
+    loadFraudLiveStats();
+    loadTransactions();
+    loadCurrentUser();
+  }
+}
+
+function showLiveAlertToast(alert) {
+  const container = document.getElementById("live-alert-toast-container");
+  if (!container) return;
+
+  const isCritical = alert.risk_level === "CRITICAL" || alert.risk_score >= 80;
+  const isMedium = alert.risk_level === "MEDIUM" || (alert.risk_score >= 30 && alert.risk_score < 70);
+  const toastClass = isCritical ? "" : (isMedium ? "toast-medium" : "toast-safe");
+
+  const toast = document.createElement("div");
+  toast.className = `live-alert-toast ${toastClass}`;
+
+  const topReason = (alert.reasons && alert.reasons.length > 0) ? (alert.reasons[0].factor || alert.reasons[0].detail) : "Suspicious transaction parameters flagged";
+
+  toast.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="live-pulse-dot"></span>
+        <strong style="color: ${isCritical ? '#ef4444' : '#f59e0b'}; font-size: 0.95rem;">
+          ${isCritical ? '🚨 CRITICAL FRAUD ALERT' : '⚠️ SUSPICIOUS TRANSACTION FLAGGED'}
+        </strong>
+      </div>
+      <button style="background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 1rem;" onclick="this.closest('.live-alert-toast').remove()">✕</button>
+    </div>
+    <div style="font-size: 0.82rem; margin-bottom: 6px;">
+      Payment of <strong style="color: #38bdf8;">₹${Number(alert.amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</strong> to <strong>${escapeHtml(alert.receiver || 'Unknown')}</strong>
+    </div>
+    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">
+      ${escapeHtml(topReason)}
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span class="badge ${getRiskBadgeClass(alert.risk_level)}" style="font-size: 0.7rem; padding: 2px 8px;">Risk Score: ${alert.risk_score}/100</span>
+      <button class="btn-primary" style="font-size: 0.75rem; padding: 3px 10px;" onclick="switchTab('panel-review'); this.closest('.live-alert-toast').remove();">Investigate</button>
+    </div>
+  `;
+
+  container.prepend(toast);
+
+  // Auto-dismiss after 7 seconds
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateX(110%)";
+      setTimeout(() => toast.remove(), 400);
+    }
+  }, 7000);
+}
+
+function appendLiveActivity(evt) {
+  const container = document.getElementById("dash-live-activity-stream");
+  if (!container) return;
+
+  if (container.children.length === 1 && container.children[0].textContent.includes("Listening")) {
+    container.innerHTML = "";
+  }
+
+  const isAlert = evt.type === "ALERT";
+  const item = document.createElement("div");
+  item.className = "live-activity-item";
+  item.innerHTML = `
+    <div>
+      <div style="font-weight: 600; color: ${isAlert ? '#f87171' : 'var(--text-main)'};">
+        ${isAlert ? '🚨' : '💳'} ₹${Number(evt.amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})} → ${escapeHtml(evt.receiver || 'Merchant')}
+      </div>
+      <div style="font-size: 0.72rem; color: var(--text-dim);">${escapeHtml(evt.timestamp)} • Status: <strong>${escapeHtml(evt.status)}</strong></div>
+    </div>
+    <span class="badge ${getRiskBadgeClass(evt.risk_level)}" style="font-size: 0.68rem; padding: 2px 6px;">Risk: ${evt.risk_score}</span>
+  `;
+
+  container.prepend(item);
+
+  while (container.children.length > 15) {
+    container.removeChild(container.lastChild);
+  }
+}
+
+// =====================================================================
+// FRAUD TELEMETRY & CONFIGURABLE THRESHOLDS MANAGEMENT
+// =====================================================================
+
+async function loadFraudLiveStats() {
+  try {
+    const res = await fetch("/api/fraud/live-stats");
+    if (!res.ok) return;
+    const stats = await res.json();
+
+    const evalEl = document.getElementById("dash-evaluated-count");
+    const lowEl = document.getElementById("dash-low-risk-count");
+    const medEl = document.getElementById("dash-medium-risk-count");
+    const highEl = document.getElementById("dash-high-risk-count");
+    const pendEl = document.getElementById("dash-pending-count");
+
+    if (evalEl) evalEl.textContent = stats.total_evaluated || 0;
+    if (lowEl) lowEl.textContent = stats.low_risk_count || 0;
+    if (medEl) medEl.textContent = stats.medium_risk_count || 0;
+    if (highEl) highEl.textContent = stats.high_risk_count || 0;
+    if (pendEl) pendEl.textContent = stats.pending_reviews || 0;
+
+    const total = Math.max(1, stats.total_evaluated || 1);
+    const pctLow = Math.round(((stats.low_risk_count || 0) / total) * 100);
+    const pctMed = Math.round(((stats.medium_risk_count || 0) / total) * 100);
+    const pctHigh = Math.round(((stats.high_risk_count || 0) / total) * 100);
+
+    const barLow = document.getElementById("bar-dist-low");
+    const barMed = document.getElementById("bar-dist-med");
+    const barHigh = document.getElementById("bar-dist-high");
+
+    if (barLow) barLow.style.width = `${Math.max(5, pctLow)}%`;
+    if (barMed) barMed.style.width = `${Math.max(3, pctMed)}%`;
+    if (barHigh) barHigh.style.width = `${Math.max(3, pctHigh)}%`;
+
+    const txtLow = document.getElementById("pct-dist-low");
+    const txtMed = document.getElementById("pct-dist-med");
+    const txtHigh = document.getElementById("pct-dist-high");
+
+    if (txtLow) txtLow.textContent = `${pctLow}% (${stats.low_risk_count || 0})`;
+    if (txtMed) txtMed.textContent = `${pctMed}% (${stats.medium_risk_count || 0})`;
+    if (txtHigh) txtHigh.textContent = `${pctHigh}% (${stats.high_risk_count || 0})`;
+
+    renderRecentFraudAlerts(stats.recent_alerts || []);
+  } catch (err) {
+    console.error("Error loading fraud live stats:", err);
+  }
+}
+
+function renderRecentFraudAlerts(alerts) {
+  const container = document.getElementById("dash-recent-fraud-alerts");
+  if (!container) return;
+
+  if (alerts.length === 0) {
+    container.innerHTML = `<div style="text-align: center; color: var(--text-dim); padding: 14px; font-size: 0.82rem;">No suspicious transactions detected. Shield is active.</div>`;
+    return;
+  }
+
+  container.innerHTML = alerts.slice(0, 4).map(a => `
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: rgba(0,0,0,0.18); border-left: 3px solid #ef4444; border-radius: 4px; margin-bottom: 6px; font-size: 0.82rem;">
+      <div>
+        <div style="font-weight: 700; color: #f87171;">₹${Number(a.amount).toLocaleString('en-IN', {minimumFractionDigits: 2})} → ${escapeHtml(a.receiver_info || 'Unknown')}</div>
+        <div style="font-size: 0.72rem; color: var(--text-dim);">${escapeHtml(a.created_at)} • ${escapeHtml(a.review_status)}</div>
+      </div>
+      <button class="btn-secondary" style="font-size: 0.7rem; padding: 2px 8px;" onclick="openTxnDetailsModal(${a.id})">Inspect</button>
+    </div>
+  `).join("");
+}
+
+async function loadThresholds() {
+  try {
+    const res = await fetch("/api/fraud/thresholds");
+    if (!res.ok) return;
+    const data = await res.json();
+    state.thresholds = data.thresholds || {};
+
+    const lowMax = state.thresholds.low_max || 29;
+    const highMin = state.thresholds.high_min || 70;
+    const autoBlock = state.thresholds.auto_block_high_risk || false;
+
+    const inLow = document.getElementById("thresh-low-max");
+    const inHigh = document.getElementById("thresh-high-min");
+    const inBlock = document.getElementById("thresh-auto-block");
+
+    if (inLow) inLow.value = lowMax;
+    if (inHigh) inHigh.value = highMin;
+    if (inBlock) inBlock.checked = autoBlock;
+
+    const pLow = document.getElementById("policy-low-max");
+    const pMed = document.getElementById("policy-med-range");
+    const pHigh = document.getElementById("policy-high-min");
+
+    if (pLow) pLow.textContent = `0 – ${lowMax} pts`;
+    if (pMed) pMed.textContent = `${Number(lowMax) + 1} – ${Number(highMin) - 1} pts`;
+    if (pHigh) pHigh.textContent = `${highMin} – 100 pts`;
+  } catch (err) {
+    console.error("Error loading thresholds:", err);
+  }
+}
+
+async function handleThresholdsSubmit(e) {
+  e.preventDefault();
+  const lowMax = parseFloat(document.getElementById("thresh-low-max").value);
+  const highMin = parseFloat(document.getElementById("thresh-high-min").value);
+  const autoBlock = document.getElementById("thresh-auto-block").checked;
+
+  if (lowMax >= highMin) {
+    alert("Low risk threshold must be strictly less than high risk threshold.");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/fraud/thresholds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ low_max: lowMax, high_min: highMin, auto_block_high_risk: autoBlock })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast("✅ " + data.message);
+      closeModal("modal-thresholds");
+      loadThresholds();
+      loadFraudLiveStats();
+    } else {
+      alert("Error saving policy: " + data.error);
+    }
+  } catch (err) {
+    alert("Request failed: " + err.message);
   }
 }
 

@@ -23,9 +23,10 @@ from engines.qr_scanner import QRScannerEngine
 from engines.anomaly_detector import AnomalyDetectionEngine
 from engines.explainability import ExplainabilityEngine
 from engines.ml_fraud_engine import MLFraudEngine
+from engines.feature_extractor import RealTimeFeatureExtractor
 from engines.forecasting_engine import SpendingForecastingEngine
 from engines.financial_chatbot import FinancialChatbotEngine
-from app import app
+from app import app, USER_RATE_TIMESTAMPS, RATE_LIMIT_LOCK, check_user_rate_limit
 import database
 
 
@@ -338,6 +339,260 @@ class NexaPayComprehensiveTestSuite(unittest.TestCase):
         users_res = self.client.get("/api/admin/users")
         self.assertEqual(users_res.status_code, 200)
         print("✓ Test 25 Passed: Admin system metrics and registered users list retrieved.")
+
+    # -------------------------------------------------------------
+    # 13. REAL-TIME FEATURE EXTRACTION & COLD-START VALIDATION
+    # -------------------------------------------------------------
+    def test_26_realtime_feature_extractor(self):
+        tx = {
+            "amount": 1500.0,
+            "receiver_info": "reliance_fresh@okaxis",
+            "category": "Groceries",
+            "device_info": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "hour": 15
+        }
+        features = RealTimeFeatureExtractor.extract_features(user_id=1, transaction=tx)
+        required_features = [
+            "tx_count_1m", "tx_count_5m", "tx_count_10m", "tx_count_1h",
+            "avg_amount", "std_amount", "max_recent_amount", "z_score",
+            "amount_ratio", "seconds_since_last_txn", "is_new_recipient",
+            "is_frequent_recipient", "is_unusual_hour", "rapid_repeat_detected",
+            "unusual_device"
+        ]
+        for f in required_features:
+            self.assertIn(f, features, f"Missing feature {f}")
+        self.assertIsInstance(features["avg_amount"], (int, float))
+        self.assertIsInstance(features["is_new_recipient"], bool)
+        print("✓ Test 26 Passed: Real-time feature extractor calculated all 15 operational features from database history.")
+
+    def test_27_cold_start_new_user(self):
+        # User ID 99999 has no prior transactions
+        new_uid = 99999
+        tx = {"amount": 250.0, "receiver_info": "tea_stall@upi", "category": "Food", "hour": 14}
+        features = RealTimeFeatureExtractor.extract_features(user_id=new_uid, transaction=tx)
+        self.assertEqual(features["tx_count_1m"], 0)
+        self.assertEqual(features["tx_count_1h"], 0)
+        self.assertTrue(features["is_new_recipient"])
+        self.assertIn(features["seconds_since_last_txn"], [999999, 999999.0])
+        self.assertEqual(features["avg_amount"], 0.0)
+        
+        # Test ML evaluation handles cold start gracefully
+        eval_res = MLFraudEngine.evaluate_transaction(tx, user_id=new_uid)
+        self.assertIn("risk_score", eval_res)
+        self.assertIn("attributions", eval_res)
+        print("✓ Test 27 Passed: Cold-start new user safely handled with genuine feature fallbacks.")
+
+    # -------------------------------------------------------------
+    # 14. THREE-TIER RISK ACTIONS (LOW, MEDIUM, HIGH)
+    # -------------------------------------------------------------
+    def test_28_three_tier_low_risk_execution(self):
+        with RATE_LIMIT_LOCK:
+            USER_RATE_TIMESTAMPS.clear()
+        payload = {
+            "amount": 220.0,
+            "receiver_upi": "groceries_mart@hdfcbank",
+            "category": "Groceries",
+            "description": "Daily essentials purchase",
+            "hour": 14
+        }
+        res = self.client.post("/api/simulator/pay", json=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["status"], "SUCCESSFUL")
+        self.assertFalse(data["verification_required"])
+        self.assertLess(data["risk_score"], 30.0)
+        self.assertIn(data["decision"], ["ALLOW", "APPROVED"])
+        print("✓ Test 28 Passed: Low-risk transaction (<30) instantly approved and settled.")
+
+    def test_29_three_tier_medium_risk_step_up_challenge(self):
+        with RATE_LIMIT_LOCK:
+            USER_RATE_TIMESTAMPS.clear()
+        # Medium risk scenario: ₹28,000 for item from a new payee
+        payload = {
+            "amount": 28000.0,
+            "receiver_upi": "luxury_boutique_suite@icici",
+            "category": "Electronics",
+            "description": "Gadget purchase",
+            "hour": 14
+        }
+        res = self.client.post("/api/simulator/pay", json=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["status"], "REQUIRE_VERIFICATION")
+        self.assertTrue(data["verification_required"])
+        self.assertGreaterEqual(data["risk_score"], 30.0)
+        self.assertLess(data["risk_score"], 70.0)
+        self.assertEqual(data["risk_level"], "MEDIUM")
+        challenge = data.get("verification_challenge")
+        self.assertIsNotNone(challenge)
+        txn_id = challenge["transaction_id"]
+        hint_code = challenge.get("code_hint", "123456")
+
+        # Confirm step-up challenge code
+        verify_res = self.client.post("/api/simulator/verify-challenge", json={
+            "transaction_id": txn_id,
+            "verification_code": hint_code
+        })
+        self.assertEqual(verify_res.status_code, 200)
+        v_data = verify_res.get_json()
+        self.assertTrue(v_data["success"])
+        print("✓ Test 29 Passed: Medium-risk transaction (30-69) prompted step-up 2FA and cleared upon verification.")
+
+    def test_30_three_tier_high_risk_held_for_review(self):
+        with RATE_LIMIT_LOCK:
+            USER_RATE_TIMESTAMPS.clear()
+        payload = {
+            "amount": 99999.0,
+            "receiver_upi": "anonymous_crypto_wallet@binance",
+            "category": "Suspicious Transfer",
+            "description": "Urgent offshore crypto fund transfer"
+        }
+        res = self.client.post("/api/simulator/pay", json=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["status"], "HELD_FOR_REVIEW")
+        self.assertGreaterEqual(data["risk_score"], 70.0)
+        self.assertIn(data["risk_level"], ["HIGH_RISK", "CRITICAL"])
+        self.assertIn(data["decision"], ["HOLD", "HELD_FOR_REVIEW", "BLOCKED"])
+        self.assertGreaterEqual(len(data.get("risk_reasons", [])), 1)
+        print("✓ Test 30 Passed: High-risk transaction (>=70) held for review without releasing funds.")
+
+    # -------------------------------------------------------------
+    # 15. DUPLICATE TRANSACTION & RATE LIMIT PREVENTION
+    # -------------------------------------------------------------
+    def test_31_duplicate_transaction_prevention(self):
+        with RATE_LIMIT_LOCK:
+            USER_RATE_TIMESTAMPS.clear()
+        unique_amt = 4321.75
+        payload = {
+            "amount": unique_amt,
+            "receiver_upi": "unique_merchant_suite@okhdfc",
+            "category": "Shopping",
+            "description": "First attempt"
+        }
+        res1 = self.client.post("/api/simulator/pay", json=payload)
+        self.assertEqual(res1.status_code, 200)
+        
+        # Immediate duplicate submission within 10-second window
+        res2 = self.client.post("/api/simulator/pay", json=payload)
+        self.assertEqual(res2.status_code, 409)
+        d2 = res2.get_json()
+        self.assertFalse(d2["success"])
+        self.assertIn("Duplicate transaction detected", d2["error"])
+        print("✓ Test 31 Passed: Duplicate transaction prevention blocked identical second submission (HTTP 409).")
+
+    def test_32_rate_limiter_enforcement(self):
+        test_uid = 77777
+        with RATE_LIMIT_LOCK:
+            USER_RATE_TIMESTAMPS[test_uid] = []
+        
+        # Fire 15 valid requests
+        for i in range(15):
+            allowed = check_user_rate_limit(test_uid, max_per_minute=15)
+            self.assertTrue(allowed, f"Request {i+1} should be allowed")
+        
+        # 16th request must be rejected
+        blocked = check_user_rate_limit(test_uid, max_per_minute=15)
+        self.assertFalse(blocked, "16th request must be rate-limited")
+        
+        # Clean up
+        with RATE_LIMIT_LOCK:
+            USER_RATE_TIMESTAMPS.pop(test_uid, None)
+        print("✓ Test 32 Passed: Sliding-window rate limiter blocked user after 15 tx/min.")
+
+    # -------------------------------------------------------------
+    # 16. CONFIGURABLE THRESHOLDS, LIVE TELEMETRY & SSE STREAM
+    # -------------------------------------------------------------
+    def test_33_configurable_thresholds_api(self):
+        # Read current thresholds
+        get_res = self.client.get("/api/fraud/thresholds")
+        self.assertEqual(get_res.status_code, 200)
+        t_data = get_res.get_json()["thresholds"]
+        self.assertIn("low_max", t_data)
+        self.assertIn("high_min", t_data)
+
+        # Switch to admin reviewer
+        self.client.post("/api/auth/switch-demo-user", json={"role": "admin_reviewer"})
+
+        # Update thresholds
+        post_res = self.client.post("/api/fraud/thresholds", json={
+            "low_max": 25.0,
+            "high_min": 75.0,
+            "auto_block_high_risk": True
+        })
+        self.assertEqual(post_res.status_code, 200)
+        self.assertTrue(post_res.get_json()["success"])
+        
+        # Verify persistence
+        verify_res = self.client.get("/api/fraud/thresholds")
+        v_data = verify_res.get_json()["thresholds"]
+        self.assertEqual(v_data["low_max"], 25.0)
+        self.assertEqual(v_data["high_min"], 75.0)
+        self.assertTrue(v_data["auto_block_high_risk"])
+
+        # Restore default thresholds
+        self.client.post("/api/fraud/thresholds", json={
+            "low_max": 30.0,
+            "high_min": 70.0,
+            "auto_block_high_risk": False
+        })
+        print("✓ Test 33 Passed: Configurable risk thresholds read, updated, and persisted.")
+
+    def test_34_sse_live_alert_stream_handshake(self):
+        res = self.client.get("/api/stream/alerts", buffered=False)
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.headers["Content-Type"].startswith("text/event-stream"))
+        first_frame = next(res.response)
+        self.assertIn(b"CONNECTED", first_frame)
+        res.close()
+        print("✓ Test 34 Passed: Server-Sent Events (SSE) live stream handshake verified.")
+
+    def test_35_human_reviewer_investigation_and_feedback(self):
+        # 1. Fetch queue to obtain a quarantined transaction
+        queue_res = self.client.get("/api/review/queue")
+        self.assertEqual(queue_res.status_code, 200)
+        queue = queue_res.get_json()["queue"]
+        self.assertGreaterEqual(len(queue), 1)
+        txn_id = queue[0]["id"]
+
+        # 2. Inspect transaction details with real-time features
+        detail_res = self.client.get(f"/api/transactions/{txn_id}")
+        self.assertEqual(detail_res.status_code, 200)
+        detail = detail_res.get_json()["transaction"]
+        self.assertIn("features_json", detail)
+        self.assertIn("rule_risk_score", detail)
+        self.assertIn("ml_anomaly_score", detail)
+        self.assertIn("ml_fraud_prob", detail)
+
+        # 3. Submit reviewer decision with notes
+        rev_payload = {
+            "transaction_id": txn_id,
+            "decision": "Confirmed Suspicious",
+            "notes": "Verified fraudulent anomaly signature. Confirmed by Compliance Officer."
+        }
+        dec_res = self.client.post("/api/review/decision", json=rev_payload)
+        self.assertEqual(dec_res.status_code, 200)
+        self.assertTrue(dec_res.get_json()["success"])
+
+        # 4. Verify fraud_feedback audit entry for model improvement
+        conn = database.get_db_connection()
+        row = conn.execute("SELECT * FROM fraud_feedback WHERE transaction_id = ? ORDER BY id DESC LIMIT 1", (txn_id,)).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["ground_truth_label"], 1)
+        self.assertIn(row["reviewer_decision"], ["Confirmed Suspicious", "Suspicious"])
+        conn.close()
+        print("✓ Test 35 Passed: Human reviewer investigation, audit log, and feedback loop verified.")
+
+    def test_36_fraud_live_stats_telemetry(self):
+        res = self.client.get("/api/fraud/live-stats")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("total_evaluated", data)
+        self.assertIn("low_risk_count", data)
+        self.assertIn("medium_risk_count", data)
+        self.assertIn("high_risk_count", data)
+        self.assertIn("thresholds", data)
+        print("✓ Test 36 Passed: Real-time fraud telemetry and distribution metrics verified.")
 
 
 if __name__ == "__main__":
